@@ -73,15 +73,15 @@ export default function ProductCard({ product, onAddToCart, addedIndicator }: Pr
               {hasDiscount ? (
                 <>
                   <span className="font-sans text-xs text-slate-500 line-through">
-                    {formatCurrency(product.price)}
+                    {formatCurrency(product.price, product.currency)}
                   </span>
                   <span className="font-sans text-lg font-extrabold text-amber-400">
-                    {formatCurrency(effectivePrice)}
+                    {formatCurrency(effectivePrice, product.currency)}
                   </span>
                 </>
               ) : (
                 <span className="font-sans text-lg font-extrabold text-white">
-                  {formatCurrency(product.price)}
+                  {formatCurrency(product.price, product.currency)}
                 </span>
               )}
             </div>

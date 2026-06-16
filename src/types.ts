@@ -8,6 +8,7 @@ export interface Product {
   stock: number;
   isOnSale?: boolean;
   discountPercent?: number;
+  currency?: string; // Optional product-level currency selection, e.g. 'CUP', 'USD', 'EUR', 'MLC'
 }
 
 export type UserRole = 'admin' | 'gerente' | 'employee';

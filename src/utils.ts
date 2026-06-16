@@ -1,10 +1,20 @@
 import { Product } from './types';
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount);
+export function formatCurrency(amount: number, currency: string = 'CUP'): string {
+  const cleanCurrency = (currency || 'CUP').toUpperCase();
+  if (cleanCurrency === 'CUP') {
+    return `${new Intl.NumberFormat('es-CU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} CUP`;
+  }
+  if (cleanCurrency === 'USD') {
+    return `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} USD`;
+  }
+  if (cleanCurrency === 'EUR') {
+    return `€${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} EUR`;
+  }
+  if (cleanCurrency === 'MLC') {
+    return `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} MLC`;
+  }
+  return `${amount} ${cleanCurrency}`;
 }
 
 export function getProductEffectivePrice(product: Product): number {

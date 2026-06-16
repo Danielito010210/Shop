@@ -435,6 +435,14 @@ export default function App() {
     setSecurityLogs([]);
   };
 
+  const handleClearActivityLogs = () => {
+    setActivityLogs([]);
+  };
+
+  const handleClearOrders = () => {
+    setOrders([]);
+  };
+
   // Filter products catalog categories
   const categoriesList = ['Todos', ...categories];
   const catalogFiltered = selectedCategory === 'Todos'
@@ -480,6 +488,8 @@ export default function App() {
             onDeleteUser={handleDeleteUser}
             onProcessOrder={handleProcessOrder}
             onClearLogs={handleClearLogs}
+            onClearActivityLogs={handleClearActivityLogs}
+            onClearOrders={handleClearOrders}
             onUpdateStoreConfig={(config) => setStoreConfig(config)}
           />
         </main>

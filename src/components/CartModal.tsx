@@ -3,6 +3,31 @@ import { X, Trash2, ShoppingBag, ArrowRight, User, Phone, MapPin, Sparkles, Navi
 import { CartItem, ClientDetails } from '../types';
 import { formatCurrency, getProductEffectivePrice } from '../utils';
 
+const countries = [
+  { name: 'Cuba', code: '+53', flag: '🇨🇺' },
+  { name: 'Estados Unidos', code: '+1', flag: '🇺🇸' },
+  { name: 'España', code: '+34', flag: '🇪🇸' },
+  { name: 'México', code: '+52', flag: '🇲🇽' },
+  { name: 'Colombia', code: '+57', flag: '🇨🇴' },
+  { name: 'Venezuela', code: '+58', flag: '🇻🇪' },
+  { name: 'Nicaragua', code: '+505', flag: '🇳🇮' },
+  { name: 'Panamá', code: '+507', flag: '🇵🇦' },
+  { name: 'Ecuador', code: '+593', flag: '🇪🇨' },
+  { name: 'República Dominicana', code: '+1', flag: '🇩🇴' },
+  { name: 'Perú', code: '+51', flag: '🇵🇪' },
+  { name: 'Argentina', code: '+54', flag: '🇦🇷' },
+  { name: 'Uruguay', code: '+598', flag: '🇺🇾' },
+  { name: 'Costa Rica', code: '+506', flag: '🇨🇷' },
+  { name: 'Honduras', code: '+504', flag: '🇭🇳' },
+  { name: 'Guatemala', code: '+502', flag: '🇬🇹' },
+  { name: 'El Salvador', code: '+503', flag: '🇸🇻' },
+  { name: 'Puerto Rico', code: '+1', flag: '🇵🇷' },
+  { name: 'Canadá', code: '+1', flag: '🇨🇦' },
+  { name: 'Italia', code: '+39', flag: '🇮🇹' },
+  { name: 'Alemania', code: '+49', flag: '🇩🇪' },
+  { name: 'Francia', code: '+33', flag: '🇫🇷' },
+];
+
 interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -26,7 +51,10 @@ export default function CartModal({
   
   // Mandatory inputs
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [localPhone, setLocalPhone] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState(countries[0]); // default Cuba (+53)
+  const [countrySearch, setCountrySearch] = useState('');
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
   const [address, setAddress] = useState('');
   
   // Optional inputs
@@ -39,6 +67,19 @@ export default function CartModal({
   if (!isOpen) return null;
 
   const totalCost = cartItems.reduce((acc, curr) => acc + getProductEffectivePrice(curr.product) * curr.quantity, 0);
+
+  const getCartTotalsFormatted = () => {
+    const totals: { [currency: string]: number } = {};
+    cartItems.forEach((item) => {
+      const currency = item.product.currency || 'CUP';
+      const price = getProductEffectivePrice(item.product);
+      totals[currency] = (totals[currency] || 0) + price * item.quantity;
+    });
+    
+    const keys = Object.keys(totals);
+    if (keys.length === 0) return formatCurrency(0, 'CUP');
+    return keys.map((k) => formatCurrency(totals[k], k)).join(' + ');
+  };
 
   const handleNextStep = () => {
     if (cartItems.length === 0) return;
@@ -54,7 +95,7 @@ export default function CartModal({
       setError('Por favor, introduce tu nombre.');
       return;
     }
-    if (!phone.trim()) {
+    if (!localPhone.trim()) {
       setError('Por favor, indica un teléfono de contacto.');
       return;
     }
@@ -63,9 +104,11 @@ export default function CartModal({
       return;
     }
 
+    const finalPhone = `${selectedCountry.code} ${localPhone.trim()}`;
+
     const clientDetails: ClientDetails = {
       name: name.trim(),
-      phone: phone.trim(),
+      phone: finalPhone,
       address: address.trim(),
     };
 
@@ -80,7 +123,10 @@ export default function CartModal({
     // Reset state
     setStep('cart');
     setName('');
-    setPhone('');
+    setLocalPhone('');
+    setSelectedCountry(countries[0]);
+    setIsCountryDropdownOpen(false);
+    setCountrySearch('');
     setAddress('');
     setNickname('');
     setReference('');
@@ -145,15 +191,15 @@ export default function CartModal({
                           {item.product.isOnSale && item.product.discountPercent ? (
                             <>
                               <span className="text-[10px] text-slate-500 line-through">
-                                {formatCurrency(item.product.price)}
+                                {formatCurrency(item.product.price, item.product.currency)}
                               </span>
                               <span className="text-xs text-amber-400 font-bold">
-                                {formatCurrency(getProductEffectivePrice(item.product))} c/u
+                                {formatCurrency(getProductEffectivePrice(item.product), item.product.currency)} c/u
                               </span>
                             </>
                           ) : (
                             <span className="text-xs text-indigo-400">
-                              {formatCurrency(item.product.price)} c/u
+                              {formatCurrency(item.product.price, item.product.currency)} c/u
                             </span>
                           )}
                         </div>
@@ -207,7 +253,7 @@ export default function CartModal({
 
               {/* Name */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1">
+                <label className="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1">
                   Nombre Completo <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -227,27 +273,93 @@ export default function CartModal({
 
               {/* Phone */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1">
+                <label className="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1">
                   Teléfono Móvil <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
-                    <Phone className="h-4 w-4" />
-                  </span>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    placeholder="Ej. +34 600 000 000"
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-850 rounded-xl text-xs text-white focus:bg-slate-950 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-medium"
-                  />
+                <div className="flex gap-2 relative">
+                  {/* Country Prefix Selector */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
+                      className="h-full flex items-center gap-1.5 px-3 bg-slate-900 border border-slate-850 rounded-xl text-xs text-white hover:bg-slate-850 focus:outline-none transition-all font-medium whitespace-nowrap min-w-[95px] justify-between"
+                    >
+                      <span className="flex items-center gap-1">{selectedCountry.flag} <span className="font-mono">{selectedCountry.code}</span></span>
+                      <span className="text-[9px] text-slate-500">▼</span>
+                    </button>
+
+                    {/* Popover list with search query */}
+                    {isCountryDropdownOpen && (
+                      <div className="absolute left-0 mt-2 z-50 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2.5 flex flex-col gap-2 max-h-60 overflow-y-auto">
+                        <input
+                          type="text"
+                          placeholder="Buscar país o código..."
+                          value={countrySearch}
+                          onChange={(e) => setCountrySearch(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="flex flex-col gap-0.5 overflow-y-auto max-h-40">
+                          {countries
+                            .filter(
+                              (c) =>
+                                c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+                                c.code.includes(countrySearch)
+                            )
+                            .map((c) => (
+                              <button
+                                type="button"
+                                key={`${c.name}-${c.code}`}
+                                onClick={() => {
+                                  setSelectedCountry(c);
+                                  setIsCountryDropdownOpen(false);
+                                  setCountrySearch('');
+                                }}
+                                className={`flex items-center justify-between px-2.5 py-2 text-left text-xs rounded-lg transition-colors leading-none ${
+                                  selectedCountry.name === c.name && selectedCountry.code === c.code
+                                    ? 'bg-indigo-650 text-white font-bold'
+                                    : 'text-slate-350 hover:bg-slate-800 hover:text-white'
+                                }`}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span>{c.flag}</span>
+                                  <span className="truncate max-w-[100px]">{c.name}</span>
+                                </span>
+                                <span className="font-mono text-[10px] text-slate-400 font-bold">{c.code}</span>
+                              </button>
+                            ))}
+                          {countries.filter(
+                            (c) =>
+                              c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+                              c.code.includes(countrySearch)
+                          ).length === 0 && (
+                            <span className="text-[11px] text-center text-slate-500 py-2">No se encontraron resultados</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Rest of Phone Number Input */}
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                      <Phone className="h-4 w-4" />
+                    </span>
+                    <input
+                      type="tel"
+                      value={localPhone}
+                      onChange={(e) => setLocalPhone(e.target.value.replace(/\D/g, ''))}
+                      required
+                      placeholder="Completa tu número de teléfono"
+                      className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-850 rounded-xl text-xs text-white focus:bg-slate-950 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-medium"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Address */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1">
+                <label className="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1">
                   Dirección de Entrega <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -269,8 +381,8 @@ export default function CartModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 {/* Nickname */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1">
-                    Apodo / Alias <span className="text-slate-500 font-normal">(Opcional)</span>
+                  <label className="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1">
+                    Apodo / Alias <span className="text-slate-400 font-normal">(Opcional)</span>
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
@@ -288,8 +400,8 @@ export default function CartModal({
 
                 {/* Reference */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1">
-                    Punto de Referencia <span className="text-slate-500 font-normal">(Opcional)</span>
+                  <label className="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1">
+                    Punto de Referencia <span className="text-slate-400 font-normal">(Opcional)</span>
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
@@ -340,7 +452,7 @@ export default function CartModal({
           <div className="border-t border-slate-900 bg-slate-950 p-5">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm text-slate-400 font-semibold">Total de Compra</span>
-              <span className="text-lg font-extrabold text-white">{formatCurrency(totalCost)}</span>
+              <span className="text-lg font-extrabold text-white">{getCartTotalsFormatted()}</span>
             </div>
 
             {step === 'cart' ? (

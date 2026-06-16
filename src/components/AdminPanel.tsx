@@ -20,7 +20,8 @@ import {
   Eye,
   DollarSign,
   Settings,
-  History
+  History,
+  Sparkles
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -57,6 +58,8 @@ interface AdminPanelProps {
   onDeleteUser: (id: string) => void;
   onProcessOrder: (orderId: string, status: OrderStatus, workerName: string) => void;
   onClearLogs?: () => void;
+  onClearActivityLogs?: () => void;
+  onClearOrders?: () => void;
   onUpdateStoreConfig: (config: any) => void;
 }
 
@@ -80,6 +83,8 @@ export default function AdminPanel({
   onDeleteUser,
   onProcessOrder,
   onClearLogs,
+  onClearActivityLogs,
+  onClearOrders,
   onUpdateStoreConfig,
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -129,6 +134,42 @@ export default function AdminPanel({
   const [userRole, setUserRole] = useState<'admin' | 'gerente' | 'employee'>('employee');
   const [userPassword, setUserPassword] = useState('');
 
+  // Product currency state
+  const [productCurrency, setProductCurrency] = useState('CUP');
+
+  // Non-blocking custom alert/confirm dialog state
+  const [customDialog, setCustomDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    isConfirm: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    isConfirm: false
+  });
+
+  const triggerAlert = (title: string, message: string) => {
+    setCustomDialog({
+      isOpen: true,
+      title,
+      message,
+      isConfirm: false
+    });
+  };
+
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setCustomDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      isConfirm: true
+    });
+  };
+
   // Selected Order Detail Modal State
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<Order | null>(null);
 
@@ -177,7 +218,7 @@ export default function AdminPanel({
   const handleProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!productName || !productPrice || !productStock || !productImage) {
-      alert('Todos los campos son obligatorios para guardar el producto.');
+      triggerAlert('Atención', 'Todos los campos son obligatorios para guardar el producto.');
       return;
     }
 
@@ -190,6 +231,7 @@ export default function AdminPanel({
       imageUrl: productImage,
       isOnSale,
       discountPercent: isOnSale ? parseInt(discountPercent) || 0 : undefined,
+      currency: productCurrency,
     };
 
     if (editingProduct) {
@@ -214,6 +256,7 @@ export default function AdminPanel({
     setProductImage('');
     setIsOnSale(false);
     setDiscountPercent('0');
+    setProductCurrency('CUP');
     setIsProductModalOpen(true);
   };
 
@@ -227,6 +270,7 @@ export default function AdminPanel({
     setProductImage(prod.imageUrl);
     setIsOnSale(!!prod.isOnSale);
     setDiscountPercent(prod.discountPercent ? prod.discountPercent.toString() : '0');
+    setProductCurrency(prod.currency || 'CUP');
     setIsProductModalOpen(true);
   };
 
@@ -238,14 +282,14 @@ export default function AdminPanel({
   const handleUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userUsername || !userFullName || (!editingUser && !userPassword)) {
-      alert('Es obligatorio rellenar el usuario, el nombre completo y la contraseña.');
+      triggerAlert('Atención', 'Es obligatorio rellenar el usuario, el nombre completo y la contraseña.');
       return;
     }
 
     if (userRole === 'gerente') {
       const otherGerentes = users.filter((u) => u.role === 'gerente' && (!editingUser || u.id !== editingUser.id));
       if (otherGerentes.length >= 2) {
-        alert('🔒 Límite del Sistema: Solo se permite tener un máximo de 2 usuarios con el rol GERENTE.');
+        triggerAlert('Límite del Sistema', '🔒 Límite del Sistema: Solo se permite tener un máximo de 2 usuarios con el rol GERENTE.');
         return;
       }
     }
@@ -625,7 +669,26 @@ export default function AdminPanel({
                   ))}
                 </div>
               </div>
-              <span className="text-xs text-slate-400 font-medium">{filteredOrders.length} pedidos encontrados</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{filteredOrders.length} pedidos encontrados</span>
+                {onClearOrders && orders.length > 0 && currentUser.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerConfirm(
+                        'Vaciar Pedidos',
+                        '¿Estás seguro de que deseas vaciar de forma permanente todo el historial de pedidos de cliente?',
+                        onClearOrders
+                      );
+                    }}
+                    className="flex items-center justify-center gap-1 bg-red-950/40 hover:bg-red-900/30 border border-red-900/40 text-red-400 font-bold px-3 py-1.5 rounded-lg text-xs transition-all active:scale-95 whitespace-nowrap"
+                    title="Vaciar Pedidos"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    <span>Vaciar Historial</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Orders Table */}
@@ -805,7 +868,7 @@ export default function AdminPanel({
                           </span>
                         </td>
                         <td className="py-3 px-5 text-right font-extrabold text-slate-900">
-                          {formatCurrency(p.price)}
+                          {formatCurrency(p.price, p.currency)}
                         </td>
                         <td className="py-3 px-5 text-center">
                           <div className="flex flex-col items-center justify-center gap-1">
@@ -877,9 +940,11 @@ export default function AdminPanel({
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm(`¿Estás completamente seguro de borrar el artículo "${p.name}"?`)) {
-                                  onDeleteProduct(p.id);
-                                }
+                                triggerConfirm(
+                                  'Eliminar Producto',
+                                  `¿Estás completamente seguro de borrar el artículo "${p.name}"?`,
+                                  () => onDeleteProduct(p.id)
+                                );
                               }}
                               className="p-1 px-2 border border-rose-100 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors text-[11px] font-bold flex items-center gap-1"
                             >
@@ -987,9 +1052,11 @@ export default function AdminPanel({
                               ) : (
                                 <button
                                   onClick={() => {
-                                    if (confirm(`¿Estás seguro de que quieres eliminar al usuario @${u.username} (${u.fullName})?`)) {
-                                      onDeleteUser(u.id);
-                                    }
+                                    triggerConfirm(
+                                      'Eliminar Usuario',
+                                      `¿Estás seguro de que quieres eliminar al usuario @${u.username} (${u.fullName})?`,
+                                      () => onDeleteUser(u.id)
+                                    );
                                   }}
                                   className="p-1 px-2 border border-rose-100 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors text-[10px] font-bold flex items-center gap-1"
                                 >
@@ -1090,6 +1157,22 @@ export default function AdminPanel({
                 <h3 className="text-sm font-bold text-white">Registro Confidencial de Movimientos de Empleados</h3>
                 <p className="text-[11px] text-slate-400 mt-1">Bitácora electrónica segura para la auditoría de operaciones realizadas por el personal.</p>
               </div>
+
+              {onClearActivityLogs && activityLogs.length > 0 && (
+                <button
+                  onClick={() => {
+                    triggerConfirm(
+                      'Vaciar Bitácora',
+                      '¿Estás seguro de que deseas vaciar de forma permanentemente el registro electrónico de movimientos?',
+                      onClearActivityLogs
+                    );
+                  }}
+                  className="flex items-center justify-center gap-1.5 border border-slate-700 hover:border-slate-650 text-slate-300 bg-slate-950 font-semibold py-2 px-3.5 rounded-xl text-xs transition-colors whitespace-nowrap hover:bg-slate-800"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Vaciar Bitácora</span>
+                </button>
+              )}
             </div>
 
             <div className="border border-slate-800 bg-slate-900/40 rounded-2xl overflow-hidden shadow-lg">
@@ -1225,25 +1308,25 @@ export default function AdminPanel({
             <form onSubmit={handleProductSubmit} className="p-5 space-y-4">
               {/* Name */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nombre del Producto</label>
+                <label className="block text-xs font-bold text-slate-750 mb-1.5">Nombre del Producto</label>
                 <input
                   type="text"
                   required
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder="Ej. Mochila Premium Alquimia"
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-800"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
               {/* Category / price grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Categoría</label>
+                  <label className="block text-xs font-bold text-slate-755 mb-1.5">Categoría</label>
                   <select
                     value={productCategory}
                     onChange={(e) => setProductCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:outline-none"
                   >
                     {Array.from(new Set([...categories, productCategory])).map((cat) => (
                       <option key={cat} value={cat}>
@@ -1253,56 +1336,68 @@ export default function AdminPanel({
                   </select>
                 </div>
                 
-                {/* Price */}
+                {/* Price & Currency */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Precio (€)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={productPrice}
-                    onChange={(e) => setProductPrice(e.target.value)}
-                    placeholder="24.99"
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
-                  />
+                  <label className="block text-xs font-bold text-slate-755 mb-1.5">Precio y Moneda</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={productPrice}
+                      onChange={(e) => setProductPrice(e.target.value)}
+                      placeholder="24.99"
+                      className="w-full px-3.5 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:outline-none"
+                    />
+                    <select
+                      value={productCurrency}
+                      onChange={(e) => setProductCurrency(e.target.value)}
+                      className="px-2 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs focus:bg-white focus:outline-none font-extrabold text-indigo-650"
+                    >
+                      <option value="CUP">CUP (🇨🇺)</option>
+                      <option value="USD">USD (🇺🇸)</option>
+                      <option value="EUR">EUR (🇪🇺)</option>
+                      <option value="MLC">MLC (💳)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
               {/* Stock */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Unidades en Stock</label>
+                <label className="block text-xs font-bold text-slate-755 mb-1.5">Unidades en Stock</label>
                 <input
                   type="number"
                   required
                   value={productStock}
                   onChange={(e) => setProductStock(e.target.value)}
                   placeholder="10"
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:outline-none"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Descripción</label>
+                <label className="block text-xs font-bold text-slate-755 mb-1.5">Descripción</label>
                 <textarea
                   value={productDescription}
                   onChange={(e) => setProductDescription(e.target.value)}
                   rows={2}
                   placeholder="Breve explicación para el cliente..."
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:outline-none"
                 />
               </div>
 
               {/* Image URL with standard placeholder options */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">URL de Imagen</label>
+                <label className="block text-xs font-bold text-slate-755 mb-1.5">URL de Imagen</label>
                 <input
                   type="text"
                   required
                   value={productImage}
                   onChange={(e) => setProductImage(e.target.value)}
                   placeholder="https://images.unsplash.com/photo-..."
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:outline-none"
                 />
               </div>
 
@@ -1317,7 +1412,7 @@ export default function AdminPanel({
                   />
                   <div>
                     <span className="text-xs font-bold text-slate-800 block">Ofrecer descuento especial</span>
-                    <span className="text-[10px] text-slate-450 block">Activa una promoción de oferta sobre el precio real</span>
+                    <span className="text-[10px] text-slate-500 block">Activa una promoción de oferta sobre el precio real</span>
                   </div>
                 </label>
 
@@ -1385,26 +1480,26 @@ export default function AdminPanel({
             {/* Content panel */}
             <div className="p-5 flex-1 overflow-y-auto space-y-4">
               {/* Insert Category form */}
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
-                <label className="block text-xs font-bold text-slate-700 mb-2">Crear nueva categoría</label>
+              <div className="bg-slate-50 border border-slate-205 rounded-xl p-3.5">
+                <label className="block text-xs font-bold text-slate-800 mb-2">Crear nueva categoría</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="Ej. Deporte, Oficina..."
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800"
+                    className="flex-1 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <button
                     type="button"
                     onClick={() => {
                       const trimmed = newCatName.trim();
                       if (!trimmed) {
-                        alert('Por favor ingrese un nombre de categoría válido.');
+                        triggerAlert('Atención', 'Por favor ingrese un nombre de categoría válido.');
                         return;
                       }
                       if (categories.includes(trimmed)) {
-                        alert('Esta categoría ya se encuentra registrada.');
+                        triggerAlert('Duplicado', 'Esta categoría ya se encuentra registrada.');
                         return;
                       }
                       onAddCategory(trimmed);
@@ -1419,7 +1514,7 @@ export default function AdminPanel({
 
               {/* List of categories */}
               <div className="space-y-2">
-                <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categorías Registradas</span>
+                <span className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-2">Categorías Registradas</span>
                 <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto pr-1">
                   {categories.map((cat) => {
                     const productCount = products.filter((p) => p.category === cat).length;
@@ -1440,7 +1535,7 @@ export default function AdminPanel({
                               onClick={() => {
                                 const trimmed = editingCatNewName.trim();
                                 if (!trimmed) {
-                                  alert('El nombre de la categoría no puede estar vacío.');
+                                  triggerAlert('Atención', 'El nombre de la categoría no puede estar vacío.');
                                   return;
                                 }
                                 if (trimmed === cat) {
@@ -1448,7 +1543,7 @@ export default function AdminPanel({
                                   return;
                                 }
                                 if (categories.includes(trimmed) && trimmed !== cat) {
-                                  alert('Esa categoría ya existe.');
+                                  triggerAlert('Duplicado', 'Esa categoría ya existe.');
                                   return;
                                 }
                                 onEditCategory(cat, trimmed);
@@ -1484,29 +1579,32 @@ export default function AdminPanel({
                                   setEditingCatOldName(cat);
                                   setEditingCatNewName(cat);
                                 }}
-                                className="p-1.5 text-slate-450 hover:text-indigo-600 hover:bg-indigo-50/50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
-                                title="Editar"
+                                className="p-2 text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-all"
+                                title="Editar Categoría"
                               >
-                                <Edit2 className="h-3 w-3" />
+                                <Edit2 className="h-4 w-4" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (productCount > 0) {
-                                    if (!confirm(`La categoría "${cat}" tiene ${productCount} productos asociados. Si la eliminas, todos estos productos serán asignados de forma automática a otra categoría disponible. ¿Deseas continuar?`)) {
-                                      return;
-                                    }
+                                    triggerConfirm(
+                                      'Eliminar Categoría',
+                                      `La categoría "${cat}" tiene ${productCount} productos asociados. Si la eliminas, todos estos productos serán asignados de forma automática a otra categoría disponible. ¿Deseas continuar?`,
+                                      () => onDeleteCategory(cat)
+                                    );
                                   } else {
-                                    if (!confirm(`¿Eliminar la categoría "${cat}"?`)) {
-                                      return;
-                                    }
+                                    triggerConfirm(
+                                      'Eliminar Categoría',
+                                      `¿Eliminar la categoría "${cat}"?`,
+                                      () => onDeleteCategory(cat)
+                                    );
                                   }
-                                  onDeleteCategory(cat);
                                 }}
-                                className="p-1.5 text-slate-450 hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
-                                title="Eliminar"
+                                className="p-2 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all"
+                                title="Eliminar Categoría"
                               >
-                                <Trash2 className="h-3 w-3" />
+                                <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
                           </>
@@ -1555,7 +1653,7 @@ export default function AdminPanel({
             <form onSubmit={handleUserSubmit} className="p-5 space-y-4">
               {/* Username (Locked if editing) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nombre de Usuario (@)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Nombre de Usuario (@)</label>
                 <input
                   type="text"
                   required
@@ -1563,35 +1661,35 @@ export default function AdminPanel({
                   value={userUsername}
                   onChange={(e) => setUserUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
                   placeholder="sofia.r"
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none disabled:bg-slate-150 disabled:text-slate-500"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-250 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:border-indigo-500 focus:outline-none disabled:bg-slate-150 disabled:text-slate-500"
                 />
               </div>
 
               {/* Full name */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nombre y Apellidos</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Nombre y Apellidos</label>
                 <input
                   type="text"
                   required
                   value={userFullName}
                   onChange={(e) => setUserFullName(e.target.value)}
                   placeholder="Sofía Rodríguez Pérez"
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-250 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
               {/* Role */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Rol de Sistema</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Rol de Sistema</label>
                 {editingUser?.username === 'admin' ? (
-                  <div className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-bold">
+                  <div className="w-full px-3.5 py-2 bg-slate-100 border border-slate-250 rounded-xl text-xs text-slate-700 font-bold">
                     Administrador Principal (Rol Maestro)
                   </div>
                 ) : (
                   <select
                     value={userRole}
                     onChange={(e) => setUserRole(e.target.value as 'admin' | 'gerente' | 'employee')}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-250 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:border-indigo-500 focus:outline-none"
                   >
                     <option value="employee">Empleado Operativo</option>
                     <option value="gerente">GERENTE (Control Total sin Bitácora)</option>
@@ -1601,7 +1699,7 @@ export default function AdminPanel({
 
               {/* Password */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   {editingUser ? 'Contraseña Nueva (Dejar en blanco para no cambiar)' : 'Contraseña de Acceso'}
                 </label>
                 <input
@@ -1610,7 +1708,7 @@ export default function AdminPanel({
                   value={userPassword}
                   onChange={(e) => setUserPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-250 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
@@ -1729,15 +1827,26 @@ export default function AdminPanel({
                       <div key={it.product.id} className="p-3 grid grid-cols-12 gap-2 items-center">
                         <span className="col-span-6 font-semibold text-slate-800 truncate">{it.product.name}</span>
                         <span className="col-span-2 text-center font-bold text-slate-600">{it.quantity} x</span>
-                        <span className="col-span-2 text-right text-slate-500">{formatCurrency(it.product.price)}</span>
-                        <span className="col-span-2 text-right font-bold text-slate-900">{formatCurrency(it.product.price * it.quantity)}</span>
+                        <span className="col-span-2 text-right text-slate-500">{formatCurrency(it.product.price, it.product.currency)}</span>
+                        <span className="col-span-2 text-right font-bold text-slate-900">{formatCurrency(it.product.price * it.quantity, it.product.currency)}</span>
                       </div>
                     ))}
                   </div>
 
                   <div className="bg-slate-50/50 p-3 border-t border-gray-100 flex items-center justify-between text-sm">
                     <span className="font-bold text-slate-700">Monto Total de Compra:</span>
-                    <span className="font-extrabold text-slate-950 text-base">{formatCurrency(selectedOrderDetail.total)}</span>
+                    <span className="font-extrabold text-slate-950 text-base">
+                      {(() => {
+                        const totals: { [cur: string]: number } = {};
+                        selectedOrderDetail.items.forEach((it) => {
+                          const cur = it.product.currency || 'CUP';
+                          totals[cur] = (totals[cur] || 0) + (it.product.price * it.quantity);
+                        });
+                        const keys = Object.keys(totals);
+                        if (keys.length === 0) return formatCurrency(selectedOrderDetail.total, 'CUP');
+                        return keys.map((k) => formatCurrency(totals[k], k)).join(' + ');
+                      })()}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1770,6 +1879,59 @@ export default function AdminPanel({
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-sm"
                 >
                   Confirmar Cobro
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 4. NON-BLOCKING CUSTOM DIALOG (Alert/Confirm replacement) */}
+      {customDialog.isOpen && (
+        <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col p-5 border border-slate-100">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`p-2 rounded-xl ${customDialog.isConfirm ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50/60 text-indigo-650'}`}>
+                {customDialog.isConfirm ? (
+                  <AlertTriangle className="h-5 w-5" />
+                ) : (
+                  <Sparkles className="h-5 w-5 animate-pulse" />
+                )}
+              </div>
+              <h3 className="text-base font-extrabold text-slate-900">{customDialog.title}</h3>
+            </div>
+            
+            <p className="text-xs text-slate-900 font-extrabold leading-relaxed mb-5">
+              {customDialog.message}
+            </p>
+
+            <div className="flex gap-3 mt-auto">
+              {customDialog.isConfirm ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setCustomDialog(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 bg-white border border-gray-255 text-slate-700 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors"
+                  >
+                    Retroceder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customDialog.onConfirm) customDialog.onConfirm();
+                      setCustomDialog(prev => ({ ...prev, isOpen: false }));
+                    }}
+                    className="flex-1 bg-indigo-650 hover:bg-indigo-600 text-white py-2.5 rounded-xl text-xs font-extrabold shadow-sm hover:shadow transition-colors"
+                  >
+                    Confirmar
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCustomDialog(prev => ({ ...prev, isOpen: false }))}
+                  className="w-full bg-indigo-650 hover:bg-indigo-600 text-white py-2.5 rounded-xl text-xs font-extrabold shadow-sm transition-all"
+                >
+                  Entendido
                 </button>
               )}
             </div>
