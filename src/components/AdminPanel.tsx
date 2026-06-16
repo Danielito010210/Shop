@@ -370,6 +370,31 @@ export default function AdminPanel({
     });
   };
 
+  const updateCloudflareConfig = (key: string, value: any) => {
+    const nextCfZoneId = key === 'cloudflareZoneId' ? value : tempCfZoneId;
+    const nextCfApiToken = key === 'cloudflareApiToken' ? value : tempCfApiToken;
+    const nextCfEmail = key === 'cloudflareEmail' ? value : tempCfEmail;
+    const nextCfProxyUrl = key === 'cloudflareProxyUrl' ? value : tempCfProxyUrl;
+    const nextCfEnabled = key === 'cloudflareEnabled' ? value : tempCfEnabled;
+
+    if (key === 'cloudflareZoneId') setTempCfZoneId(value);
+    if (key === 'cloudflareApiToken') setTempCfApiToken(value);
+    if (key === 'cloudflareEmail') setTempCfEmail(value);
+    if (key === 'cloudflareProxyUrl') setTempCfProxyUrl(value);
+    if (key === 'cloudflareEnabled') setTempCfEnabled(value);
+
+    onUpdateStoreConfig({
+      storeName: tempStoreName,
+      contactNumber: tempContactNumber,
+      workingHours: tempWorkingHours,
+      cloudflareEnabled: nextCfEnabled,
+      cloudflareZoneId: nextCfZoneId,
+      cloudflareApiToken: nextCfApiToken,
+      cloudflareEmail: nextCfEmail,
+      cloudflareProxyUrl: nextCfProxyUrl,
+    });
+  };
+
   const handleManualPurge = async () => {
     if (!onTriggerCloudflarePurge) return;
     setIsPurging(true);
@@ -1350,7 +1375,7 @@ export default function AdminPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => setTempCfEnabled(!tempCfEnabled)}
+                      onClick={() => updateCloudflareConfig('cloudflareEnabled', !tempCfEnabled)}
                       className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${tempCfEnabled ? 'bg-indigo-650' : 'bg-slate-800'}`}
                     >
                       <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${tempCfEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -1363,7 +1388,7 @@ export default function AdminPanel({
                       <input
                         type="text"
                         value={tempCfZoneId}
-                        onChange={(e) => setTempCfZoneId(e.target.value)}
+                        onChange={(e) => updateCloudflareConfig('cloudflareZoneId', e.target.value)}
                         placeholder="Ej. d3b07384d113edec49eaa6238ad5ff00"
                         className="w-full px-4 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
                       />
@@ -1375,7 +1400,7 @@ export default function AdminPanel({
                         <input
                           type={showCfToken ? 'text' : 'password'}
                           value={tempCfApiToken}
-                          onChange={(e) => setTempCfApiToken(e.target.value)}
+                          onChange={(e) => updateCloudflareConfig('cloudflareApiToken', e.target.value)}
                           placeholder="Ingrese Token de Acceso"
                           className="w-full pl-4 pr-10 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
                         />
@@ -1395,7 +1420,7 @@ export default function AdminPanel({
                         <input
                           type="email"
                           value={tempCfEmail}
-                          onChange={(e) => setTempCfEmail(e.target.value)}
+                          onChange={(e) => updateCloudflareConfig('cloudflareEmail', e.target.value)}
                           placeholder="Ej. admin@miweb.com"
                           className="w-full px-3 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none font-extrabold"
                         />
@@ -1405,7 +1430,7 @@ export default function AdminPanel({
                         <input
                           type="url"
                           value={tempCfProxyUrl}
-                          onChange={(e) => setTempCfProxyUrl(e.target.value)}
+                          onChange={(e) => updateCloudflareConfig('cloudflareProxyUrl', e.target.value)}
                           placeholder="Ej. https://mi-worker.domain.workers.dev"
                           className="w-full px-3 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none font-extrabold"
                         />

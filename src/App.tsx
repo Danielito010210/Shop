@@ -333,7 +333,21 @@ export default function App() {
         clearTimeout(purgeTimeoutRef.current);
       }
     };
-  }, [products, categories, storeConfig]);
+  }, [products, categories]);
+
+  // --- Ciclo Automático Periódico de Purga CDN de Cloudflare cada 15 segundos ---
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (storeConfig?.cloudflareEnabled) {
+        console.log('[CDN Cloudflare] Iniciando purga periódica programada (Intervalo de 15 segundos)...');
+        triggerCloudflarePurgeCache();
+      }
+    }, 15000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [storeConfig]);
 
   // --- Cart operations ---
   const handleAddToCart = (product: Product) => {
