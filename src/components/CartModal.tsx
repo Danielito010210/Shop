@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Trash2, ShoppingBag, ArrowRight, User, Phone, MapPin, Sparkles, Navigation, CheckCircle2 } from 'lucide-react';
 import { CartItem, ClientDetails } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, getProductEffectivePrice } from '../utils';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -38,7 +38,7 @@ export default function CartModal({
 
   if (!isOpen) return null;
 
-  const totalCost = cartItems.reduce((acc, curr) => acc + curr.product.price * curr.quantity, 0);
+  const totalCost = cartItems.reduce((acc, curr) => acc + getProductEffectivePrice(curr.product) * curr.quantity, 0);
 
   const handleNextStep = () => {
     if (cartItems.length === 0) return;
@@ -141,7 +141,22 @@ export default function CartModal({
                       />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-bold text-white truncate">{item.product.name}</h4>
-                        <p className="text-xs text-indigo-400 mt-0.5">{formatCurrency(item.product.price)} c/u</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {item.product.isOnSale && item.product.discountPercent ? (
+                            <>
+                              <span className="text-[10px] text-slate-500 line-through">
+                                {formatCurrency(item.product.price)}
+                              </span>
+                              <span className="text-xs text-amber-400 font-bold">
+                                {formatCurrency(getProductEffectivePrice(item.product))} c/u
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-indigo-400">
+                              {formatCurrency(item.product.price)} c/u
+                            </span>
+                          )}
+                        </div>
                       </div>
                       
                       {/* Quantity Controls */}

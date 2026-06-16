@@ -23,6 +23,7 @@ import {
   generateInvoiceNumber, 
   formatCurrency 
 } from './utils';
+import { sha256 } from './utils_crypto';
 
 // Subcomponents
 import Navbar from './components/Navbar';
@@ -46,6 +47,103 @@ export default function App() {
     getLocalStorageData('omnistore_security_logs', INITIAL_SECURITY_LOGS)
   );
 
+  // --- Store Configuration & Staff Activity Logs ---
+  const [storeConfig, setStoreConfig] = useState<any>(() => 
+    getLocalStorageData('omnistore_config', {
+      storeName: 'Cubanos en Miami',
+      contactNumber: '+1 (305) 555-0199',
+      workingHours: 'Lunes a Sábado: 9:00 AM - 8:00 PM / Domingo: Cerrado'
+    })
+  );
+
+  const [activityLogs, setActivityLogs] = useState<any[]>(() => 
+    getLocalStorageData('omnistore_activity_logs', [])
+  );
+
+  // --- Categories State (persisted in localStorage) ---
+  const [categories, setCategories] = useState<string[]>(() => {
+    return getLocalStorageData('omnistore_categories', ['Accesorios', 'Audio', 'Viaje', 'Periféricos', 'Hogar']);
+  });
+
+  useEffect(() => {
+    setLocalStorageData('omnistore_categories', categories);
+  }, [categories]);
+
+  // --- Category Handlers ---
+  const handleAddCategory = (newCat: string) => {
+    setCategories((prev) => {
+      if (prev.includes(newCat)) return prev;
+      return [...prev, newCat];
+    });
+    // Add activity log
+    if (currentUser) {
+      setActivityLogs((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          username: currentUser?.username || 'admin',
+          action: `Creó la categoría "${newCat}"`
+        },
+        ...prev
+      ]);
+    }
+  };
+
+  const handleEditCategory = (oldCat: string, newCat: string) => {
+    // 1. Update categories list
+    setCategories((prev) => prev.map((c) => (c === oldCat ? newCat : c)));
+    // 2. Update products belonging to this category automatically
+    setProducts((currentProducts) =>
+      currentProducts.map((p) => (p.category === oldCat ? { ...p, category: newCat } : p))
+    );
+    // Add activity log
+    if (currentUser) {
+      setActivityLogs((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          username: currentUser?.username || 'admin',
+          action: `Renombró la categoría "${oldCat}" a "${newCat}"`
+        },
+        ...prev
+      ]);
+    }
+  };
+
+  const handleDeleteCategory = (catToDel: string) => {
+    // 1. Find what the new default category will be (exclude delete candidate)
+    const remaining = categories.filter((c) => c !== catToDel);
+    const fallbackCat = remaining.length > 0 ? remaining[0] : 'Accesorios';
+
+    // 2. Remove from categories list
+    setCategories((prev) => {
+      const filtered = prev.filter((c) => c !== catToDel);
+      return filtered.length > 0 ? filtered : ['Accesorios'];
+    });
+
+    // 3. Update products belonging to this category to map to fallbackCat
+    setProducts((currentProducts) => {
+      return currentProducts.map((p) => (p.category === catToDel ? { ...p, category: fallbackCat } : p));
+    });
+
+    // Add activity log
+    if (currentUser) {
+      setActivityLogs((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          username: currentUser?.username || 'admin',
+          action: `Eliminó la categoría "${catToDel}"`
+        },
+        ...prev
+      ]);
+    }
+    // Adjust storefront selected category filter if it was the deleted one
+    if (selectedCategory === catToDel) {
+      setSelectedCategory('Todos');
+    }
+  };
+
   // --- Runtime View States ---
   const [currentView, setCurrentView] = useState<'store' | 'admin'>('store');
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -61,6 +159,46 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [addedIndicators, setAddedIndicators] = useState<{ [productId: string]: boolean }>({});
   const [lastGeneratedInvoice, setLastGeneratedInvoice] = useState<string | null>(null);
+
+  // --- Reset/Heal Admin Credentials if needed to force correct defaults ---
+  useEffect(() => {
+    const expectedHash = sha256('admin123*');
+    setUsers((currentUsers) => {
+      const adminIdx = currentUsers.findIndex(u => u.username === 'admin');
+      if (adminIdx !== -1) {
+        const adminUser = currentUsers[adminIdx];
+        if (
+          adminUser.password !== expectedHash || 
+          adminUser.blockedUntil !== undefined || 
+          (adminUser.failedLoginAttempts || 0) > 0 ||
+          adminUser.mustChangePassword
+        ) {
+          const updated = [...currentUsers];
+          updated[adminIdx] = {
+            ...adminUser,
+            password: expectedHash,
+            blockedUntil: undefined,
+            failedLoginAttempts: 0,
+            mustChangePassword: false
+          };
+          return updated;
+        }
+      } else {
+        // Safe fallback if admin was deleted
+        return [
+          {
+            id: 'user-admin',
+            username: 'admin',
+            fullName: 'Administrador Principal',
+            role: 'admin',
+            password: expectedHash
+          },
+          ...currentUsers
+        ];
+      }
+      return currentUsers;
+    });
+  }, []);
 
   // --- Sync database with LocalStorage on mutation ---
   useEffect(() => {
@@ -78,6 +216,14 @@ export default function App() {
   useEffect(() => {
     setLocalStorageData('omnistore_security_logs', securityLogs);
   }, [securityLogs]);
+
+  useEffect(() => {
+    setLocalStorageData('omnistore_config', storeConfig);
+  }, [storeConfig]);
+
+  useEffect(() => {
+    setLocalStorageData('omnistore_activity_logs', activityLogs);
+  }, [activityLogs]);
 
   // --- Cart operations ---
   const handleAddToCart = (product: Product) => {
@@ -165,6 +311,20 @@ export default function App() {
     setLastGeneratedInvoice(nextInvoice);
   };
 
+  // --- Activity Auditor Logging ---
+  const logActivity = (action: string, details: string) => {
+    if (!currentUser) return;
+    const newLog = {
+      id: `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: new Date().toISOString(),
+      username: currentUser.username,
+      userFullName: currentUser.fullName,
+      action,
+      details,
+    };
+    setActivityLogs((prev) => [newLog, ...prev]);
+  };
+
   // --- Backoffice Actions ---
   const handleProcessOrder = (orderId: string, status: OrderStatus, workerName: string) => {
     setOrders((prevOrders) => {
@@ -179,6 +339,11 @@ export default function App() {
         return ord;
       });
     });
+
+    const targetOrder = orders.find(o => o.id === orderId);
+    const invoiceLabel = targetOrder ? `Factura: ${targetOrder.invoiceNumber}` : `ID: ${orderId}`;
+    const statusLabel = status === 'confirmed' ? 'Confirmado' : status === 'canceled' ? 'Cancelado' : 'Pendiente';
+    logActivity('Procesar Pedido', `Se actualizó el estado del pedido (${invoiceLabel}) a la categoría "${statusLabel}" bajo la firma de ${workerName}.`);
   };
 
   // --- Products CRUD handlers ---
@@ -188,17 +353,23 @@ export default function App() {
       id: `prod-${Date.now()}`,
     };
     setProducts((prev) => [payload, ...prev]);
+    logActivity('Crear Producto', `Se añadió el producto "${payload.name}" con un precio base de ${formatCurrency(payload.price)} y stock inicial de ${payload.stock} unidades.`);
   };
 
   const handleUpdateProduct = (updatedProd: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updatedProd.id ? updatedProd : p)));
+    logActivity('Actualizar Producto', `Se actualizó el producto "${updatedProd.name}". Nuevo precio: ${formatCurrency(updatedProd.price)}, stock registrado: ${updatedProd.stock} unidades.`);
   };
 
   const handleDeleteProduct = (id: string) => {
+    const prod = products.find(p => p.id === id);
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    if (prod) {
+      logActivity('Eliminar Producto', `Se borró del inventario el producto "${prod.name}" (ID: ${id}) de forma irreversible.`);
+    }
   };
 
-  // --- Users CRUD handlers (Admin only) ---
+  // --- Users CRUD handlers (Admin only / Lock rules) ---
   const handleAddUser = (newUser: Omit<User, 'id'> & { password?: string }) => {
     const payload: User = {
       id: `user-${Date.now()}`,
@@ -209,14 +380,23 @@ export default function App() {
     };
 
     setUsers((prev) => [...prev, payload]);
+    logActivity('Crear Usuario', `Se dió de alta al nuevo operador @${payload.username} (${payload.fullName}) en el sistema con el rango de ${payload.role}.`);
   };
 
   const handleUpdateUser = (id: string, updates: Partial<User>) => {
+    const targetUser = users.find(u => u.id === id);
     setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...updates } : u)));
+    if (targetUser) {
+      logActivity('Modificar Usuario', `Se modificó el perfil del operador @${targetUser.username}. Campos actualizados: ${Object.keys(updates).join(', ')}.`);
+    }
   };
 
   const handleDeleteUser = (id: string) => {
+    const targetUser = users.find(u => u.id === id);
     setUsers((prev) => prev.filter((u) => u.id !== id));
+    if (targetUser) {
+      logActivity('Eliminar Usuario', `Se eliminó y desvinculó permanentemente al usuario @${targetUser.username} (${targetUser.fullName}) de la nómina.`);
+    }
   };
 
   // --- Authentications handlers ---
@@ -256,7 +436,7 @@ export default function App() {
   };
 
   // Filter products catalog categories
-  const categoriesList = ['Todos', ...Array.from(new Set(products.map((p) => p.category)))];
+  const categoriesList = ['Todos', ...categories];
   const catalogFiltered = selectedCategory === 'Todos'
     ? products
     : products.filter((p) => p.category === selectedCategory);
@@ -274,6 +454,7 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenLoginModal={() => setIsLoginOpen(true)}
+        storeName={storeConfig.storeName}
       />
 
       {/* --- WORK OFFICE BACKSTAGE MODE --- */}
@@ -285,6 +466,12 @@ export default function App() {
             users={users}
             orders={orders}
             securityLogs={securityLogs}
+            activityLogs={activityLogs}
+            storeConfig={storeConfig}
+            categories={categories}
+            onAddCategory={handleAddCategory}
+            onEditCategory={handleEditCategory}
+            onDeleteCategory={handleDeleteCategory}
             onAddProduct={handleAddProduct}
             onUpdateProduct={handleUpdateProduct}
             onDeleteProduct={handleDeleteProduct}
@@ -293,6 +480,7 @@ export default function App() {
             onDeleteUser={handleDeleteUser}
             onProcessOrder={handleProcessOrder}
             onClearLogs={handleClearLogs}
+            onUpdateStoreConfig={(config) => setStoreConfig(config)}
           />
         </main>
       ) : (
@@ -383,17 +571,43 @@ export default function App() {
       )}
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-10 font-sans mt-auto">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-white uppercase tracking-widest bg-indigo-650 h-7 w-7 rounded-lg flex items-center justify-center border border-indigo-400/20">
-              O
-            </span>
-            <span className="text-xs font-bold text-slate-300">OmniStore S.A. &copy; 2026</span>
+      <footer className="border-t border-slate-900 bg-slate-950 py-12 font-sans mt-auto border-t-2 border-indigo-950">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-8 border-b border-slate-900 text-center sm:text-left">
+            {/* Store Branding info */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 justify-center sm:justify-start">
+                <span className="text-xs font-extrabold text-white uppercase tracking-widest bg-indigo-650 h-8 w-8 rounded-xl flex items-center justify-center border border-indigo-400/30">
+                  C
+                </span>
+                <span className="text-sm font-extrabold text-white tracking-wider uppercase">{storeConfig.storeName}</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto sm:mx-0">
+                Tu rincón de conveniencia y productos exclusivos en Florida con envíos express seguros y las máximas garantías.
+              </p>
+            </div>
+
+            {/* Hours */}
+            <div className="space-y-2.5">
+              <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Horario Comercial</h4>
+              <p className="text-xs text-slate-300 font-bold">{storeConfig.workingHours}</p>
+              <p className="text-[11px] text-slate-500">Los pedidos de la tienda online se despachan las 24 horas.</p>
+            </div>
+
+            {/* Contact Details */}
+            <div className="space-y-2.5">
+              <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Atención Telefónica / WhatsApp</h4>
+              <p className="text-xs text-slate-350 font-extrabold tracking-wide">{storeConfig.contactNumber}</p>
+              <p className="text-[11px] text-slate-500">Soporte directo para envíos y cancelaciones.</p>
+            </div>
           </div>
-          <span className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-            Diseñado con colores de contraste premium, tipografía neo-brutalista de corte ejecutivo y un cálculo inmediato de tasas y despacho dinámico de almacenes físicos.
-          </span>
+
+          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500 text-center">
+            <span>&copy; {new Date().getFullYear()} {storeConfig.storeName}. Todos los derechos reservados.</span>
+            <span className="max-w-md text-[10px] leading-relaxed">
+              Diseñado con colores de contraste premium, tipografía neo-brutalista de corte ejecutivo y un cálculo inmediato de tasas y despacho dinámico de almacenes físicos.
+            </span>
+          </div>
         </div>
       </footer>
 
@@ -417,6 +631,7 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
         onLoginFailure={handleLoginFailure}
         registeredUsers={users}
+        onUpdateUser={handleUpdateUser}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { Product, User, Order, SecurityLog } from './types';
+import { sha256 } from './utils_crypto';
 
 export const INITIAL_PRODUCTS: Product[] = [
   {
@@ -63,21 +64,23 @@ export const INITIAL_USERS: User[] = [
     username: 'admin',
     fullName: 'Administrador Principal',
     role: 'admin',
-    password: 'admin' // Simple password for demo
+    password: sha256('admin123*')
   },
   {
     id: 'user-emp1',
     username: 'sofia.r',
     fullName: 'Sofía Rodríguez',
     role: 'employee',
-    password: 'sofia'
+    password: sha256('sofia123*'),
+    mustChangePassword: true
   },
   {
     id: 'user-emp2',
     username: 'carlos.m',
     fullName: 'Carlos Mendoza',
     role: 'employee',
-    password: 'carlos'
+    password: sha256('carlos123*'),
+    mustChangePassword: true
   }
 ];
 

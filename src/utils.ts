@@ -1,8 +1,19 @@
+import { Product } from './types';
+
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('es-ES', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'EUR'
+    currency: 'USD'
   }).format(amount);
+}
+
+export function getProductEffectivePrice(product: Product): number {
+  if (product.isOnSale && product.discountPercent) {
+    const discounted = product.price * (1 - product.discountPercent / 100);
+    // Round to 2 decimal places to prevent float precision issues in calculations
+    return Math.round(discounted * 100) / 100;
+  }
+  return product.price;
 }
 
 export function generateInvoiceNumber(existingCount: number): string {

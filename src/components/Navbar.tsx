@@ -10,6 +10,7 @@ interface NavbarProps {
   currentUser: User | null;
   onLogout: () => void;
   onOpenLoginModal: () => void;
+  storeName?: string;
 }
 
 export default function Navbar({
@@ -20,6 +21,7 @@ export default function Navbar({
   currentUser,
   onLogout,
   onOpenLoginModal,
+  storeName,
 }: NavbarProps) {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-900 bg-slate-950/80 backdrop-blur-md">
@@ -27,11 +29,11 @@ export default function Navbar({
         {/* Branding */}
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-650 text-white shadow-lg shadow-indigo-500/20 border border-indigo-400/20">
-            <span className="font-sans text-xl font-extrabold tracking-tight">O</span>
+            <span className="font-sans text-xl font-extrabold tracking-tight">C</span>
           </div>
           <div>
-            <span className="block font-sans text-lg font-bold tracking-tight text-white">
-              OmniStore <span className="text-xs font-normal text-indigo-400">Premium</span>
+            <span className="block font-sans text-base sm:text-lg font-bold tracking-tight text-white">
+              {storeName || 'Cubanos en Miami'}
             </span>
           </div>
         </div>
@@ -74,9 +76,13 @@ export default function Navbar({
               <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-extrabold uppercase border ${
                 currentUser.role === 'admin' 
                   ? 'bg-indigo-950 text-indigo-300 border-indigo-500/30' 
+                  : currentUser.role === 'gerente'
+                  ? 'bg-teal-950 text-teal-300 border-teal-500/30'
                   : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}>
-                {currentUser.role === 'admin' ? 'Admin' : 'Empleado'}
+                {currentUser.role === 'admin' && 'Admin'}
+                {currentUser.role === 'gerente' && 'Gerente'}
+                {currentUser.role === 'employee' && 'Empleado'}
               </span>
               <span className="truncate max-w-[100px]">{currentUser.fullName}</span>
             </div>

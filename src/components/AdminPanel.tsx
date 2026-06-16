@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
   Package,
@@ -18,7 +18,9 @@ import {
   AlertTriangle,
   RefreshCw,
   Eye,
-  DollarSign
+  DollarSign,
+  Settings,
+  History
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -41,6 +43,12 @@ interface AdminPanelProps {
   users: User[];
   orders: Order[];
   securityLogs: SecurityLog[];
+  activityLogs: any[];
+  storeConfig: any;
+  categories: string[];
+  onAddCategory: (newCat: string) => void;
+  onEditCategory: (oldCat: string, newCat: string) => void;
+  onDeleteCategory: (catToDel: string) => void;
   onAddProduct: (product: Omit<Product, 'id'>) => void;
   onUpdateProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
@@ -49,6 +57,7 @@ interface AdminPanelProps {
   onDeleteUser: (id: string) => void;
   onProcessOrder: (orderId: string, status: OrderStatus, workerName: string) => void;
   onClearLogs?: () => void;
+  onUpdateStoreConfig: (config: any) => void;
 }
 
 export default function AdminPanel({
@@ -57,6 +66,12 @@ export default function AdminPanel({
   users,
   orders,
   securityLogs,
+  activityLogs,
+  storeConfig,
+  categories,
+  onAddCategory,
+  onEditCategory,
+  onDeleteCategory,
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
@@ -65,8 +80,9 @@ export default function AdminPanel({
   onDeleteUser,
   onProcessOrder,
   onClearLogs,
+  onUpdateStoreConfig,
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'products' | 'users' | 'security'>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // Search/Filters states
   const [productSearch, setProductSearch] = useState('');
@@ -76,18 +92,41 @@ export default function AdminPanel({
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productName, setProductName] = useState('');
-  const [productCategory, setProductCategory] = useState('Accesorios');
+  const [productCategory, setProductCategory] = useState(categories && categories.length > 0 ? categories[0] : 'Accesorios');
   const [productPrice, setProductPrice] = useState('');
   const [productStock, setProductStock] = useState('');
   const [productDescription, setProductDescription] = useState('');
   const [productImage, setProductImage] = useState('');
+  
+  // Discount Product Form States
+  const [isOnSale, setIsOnSale] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState('0');
+
+  // Category management modal states
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [editingCatOldName, setEditingCatOldName] = useState<string | null>(null);
+  const [editingCatNewName, setEditingCatNewName] = useState('');
+
+  // Store Configuration States
+  const [tempStoreName, setTempStoreName] = useState(storeConfig?.storeName || 'Cubanos en Miami');
+  const [tempContactNumber, setTempContactNumber] = useState(storeConfig?.contactNumber || '');
+  const [tempWorkingHours, setTempWorkingHours] = useState(storeConfig?.workingHours || '');
+
+  useEffect(() => {
+    if (storeConfig) {
+      setTempStoreName(storeConfig.storeName || 'Cubanos en Miami');
+      setTempContactNumber(storeConfig.contactNumber || '');
+      setTempWorkingHours(storeConfig.workingHours || '');
+    }
+  }, [storeConfig]);
 
   // Create / Edit User Form State
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userUsername, setUserUsername] = useState('');
   const [userFullName, setUserFullName] = useState('');
-  const [userRole, setUserRole] = useState<'admin' | 'employee'>('employee');
+  const [userRole, setUserRole] = useState<'admin' | 'gerente' | 'employee'>('employee');
   const [userPassword, setUserPassword] = useState('');
 
   // Selected Order Detail Modal State
@@ -149,6 +188,8 @@ export default function AdminPanel({
       stock: parseInt(productStock),
       description: productDescription,
       imageUrl: productImage,
+      isOnSale,
+      discountPercent: isOnSale ? parseInt(discountPercent) || 0 : undefined,
     };
 
     if (editingProduct) {
@@ -166,11 +207,13 @@ export default function AdminPanel({
   const openAddProduct = () => {
     setEditingProduct(null);
     setProductName('');
-    setProductCategory('Accesorios');
+    setProductCategory(categories && categories.length > 0 ? categories[0] : 'Accesorios');
     setProductPrice('');
     setProductStock('');
     setProductDescription('');
     setProductImage('');
+    setIsOnSale(false);
+    setDiscountPercent('0');
     setIsProductModalOpen(true);
   };
 
@@ -182,6 +225,8 @@ export default function AdminPanel({
     setProductStock(prod.stock.toString());
     setProductDescription(prod.description);
     setProductImage(prod.imageUrl);
+    setIsOnSale(!!prod.isOnSale);
+    setDiscountPercent(prod.discountPercent ? prod.discountPercent.toString() : '0');
     setIsProductModalOpen(true);
   };
 
@@ -195,6 +240,14 @@ export default function AdminPanel({
     if (!userUsername || !userFullName || (!editingUser && !userPassword)) {
       alert('Es obligatorio rellenar el usuario, el nombre completo y la contraseña.');
       return;
+    }
+
+    if (userRole === 'gerente') {
+      const otherGerentes = users.filter((u) => u.role === 'gerente' && (!editingUser || u.id !== editingUser.id));
+      if (otherGerentes.length >= 2) {
+        alert('🔒 Límite del Sistema: Solo se permite tener un máximo de 2 usuarios con el rol GERENTE.');
+        return;
+      }
     }
 
     if (editingUser) {
@@ -241,6 +294,15 @@ export default function AdminPanel({
     setEditingUser(null);
   };
 
+  const handleSettingsSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onUpdateStoreConfig({
+      storeName: tempStoreName,
+      contactNumber: tempContactNumber,
+      workingHours: tempWorkingHours,
+    });
+  };
+
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.category.toLowerCase().includes(productSearch.toLowerCase())
@@ -273,11 +335,13 @@ export default function AdminPanel({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white">{currentUser.fullName}</span>
-              <span className="rounded-full bg-slate-800 border border-slate-700 px-2 py-0.5 text-[9px] font-bold uppercase text-slate-300">
-                {currentUser.role === 'admin' ? 'Administrador' : 'Empleado'}
+              <span className="rounded-full bg-slate-800 border border-slate-700 px-2 py-0.5 text-[9px] font-bold uppercase text-slate-300 font-sans">
+                {currentUser.role === 'admin' && 'Administrador'}
+                {currentUser.role === 'gerente' && 'Gerente'}
+                {currentUser.role === 'employee' && 'Empleado'}
               </span>
             </div>
-            <span className="text-[11px] text-slate-450 font-medium">Sesión iniciada vía OmniStore</span>
+            <span className="text-[11px] text-slate-450 font-medium">Sesión iniciada vía Admin Control</span>
           </div>
         </div>
       </div>
@@ -351,6 +415,34 @@ export default function AdminPanel({
             <span className="ml-1.5 h-2.5 w-2.5 rounded-full bg-red-655 ring-4 ring-red-950/45 animate-pulse" />
           )}
         </button>
+
+        {currentUser.role === 'admin' && (
+          <button
+            onClick={() => setActiveTab('activities')}
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold transition-all ${
+              activeTab === 'activities'
+                ? 'border-indigo-400 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <History className="h-4 w-4" />
+            <span>Movimientos Staff</span>
+          </button>
+        )}
+
+        {(currentUser.role === 'admin' || currentUser.role === 'gerente') && (
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold transition-all ${
+              activeTab === 'settings'
+                ? 'border-indigo-400 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+            <span>Configuración</span>
+          </button>
+        )}
       </div>
 
       {/* --- CONTENT AREA --- */}
@@ -650,13 +742,25 @@ export default function AdminPanel({
                 />
               </div>
 
-              <button
-                onClick={openAddProduct}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-850 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all active:scale-95 shadow-sm"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Agregar Producto</span>
-              </button>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                {(currentUser.role === 'admin' || currentUser.role === 'gerente') && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(true)}
+                    className="w-full sm:w-auto flex items-center justify-center gap-1.5 border border-gray-200 hover:bg-slate-50 text-slate-700 font-semibold py-2 px-4 rounded-xl text-xs transition-all active:scale-95 shadow-2xs bg-white"
+                  >
+                    <Settings className="h-4 w-4 text-slate-400" />
+                    <span>Gestionar Categorías</span>
+                  </button>
+                )}
+                <button
+                  onClick={openAddProduct}
+                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-850 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all active:scale-95 shadow-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Agregar Producto</span>
+                </button>
+              </div>
             </div>
 
             {/* Products interactive list */}
@@ -668,6 +772,7 @@ export default function AdminPanel({
                     <th className="py-4 px-5">Nombre / ID</th>
                     <th className="py-4 px-5">Categoría</th>
                     <th className="py-4 px-5 text-right">Precio Unitario</th>
+                    <th className="py-4 px-5 text-center">Descuento / Promo</th>
                     <th className="py-4 px-5 text-center">Stock Registrado</th>
                     <th className="py-4 px-5 text-center">Acción</th>
                   </tr>
@@ -675,7 +780,7 @@ export default function AdminPanel({
                 <tbody className="divide-y divide-gray-100 text-xs text-slate-700">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-slate-400">
+                      <td colSpan={7} className="text-center py-12 text-slate-400">
                         No se encontraron productos registrados en el inventario.
                       </td>
                     </tr>
@@ -701,6 +806,54 @@ export default function AdminPanel({
                         </td>
                         <td className="py-3 px-5 text-right font-extrabold text-slate-900">
                           {formatCurrency(p.price)}
+                        </td>
+                        <td className="py-3 px-5 text-center">
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            {/* Toggle Switch */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateProduct({
+                                  ...p,
+                                  isOnSale: !p.isOnSale,
+                                  discountPercent: !p.isOnSale ? (p.discountPercent || 15) : undefined
+                                });
+                              }}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                p.isOnSale ? 'bg-amber-500' : 'bg-slate-200'
+                              }`}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                  p.isOnSale ? 'translate-x-4' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+
+                            {/* Percentage input, visible only if toggle is on */}
+                            {p.isOnSale ? (
+                              <div className="flex items-center gap-1 animate-fade-in mt-0.5">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="99"
+                                  value={p.discountPercent !== undefined ? p.discountPercent : 15}
+                                  onChange={(e) => {
+                                    const pct = parseInt(e.target.value);
+                                    onUpdateProduct({
+                                      ...p,
+                                      isOnSale: true,
+                                      discountPercent: isNaN(pct) ? 0 : Math.max(1, Math.min(99, pct))
+                                    });
+                                  }}
+                                  className="w-10 text-center text-[10px] font-extrabold text-amber-950 bg-amber-50/50 border border-amber-200 rounded py-0.5 px-0.5 focus:outline-none"
+                                />
+                                <span className="text-[10px] text-amber-700 font-bold">%</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-medium">Sin promo</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-5 text-center">
                           <span className={`inline-flex rounded-lg px-2.5 py-1 font-sans text-xs font-bold leading-none ${
@@ -800,10 +953,14 @@ export default function AdminPanel({
                           <td className="py-4 px-5">
                             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase ${
                               u.role === 'admin'
-                                ? 'bg-slate-900 text-white'
+                                ? 'bg-indigo-950 text-indigo-300 border border-indigo-900/30'
+                                : u.role === 'gerente'
+                                ? 'bg-amber-950 text-amber-300 border border-amber-900/30'
                                 : 'bg-slate-100 text-slate-600'
                             }`}>
-                              {u.role === 'admin' ? 'Administrador' : 'Empleado'}
+                              {u.role === 'admin' && 'Administrador'}
+                              {u.role === 'gerente' && 'Gerente'}
+                              {u.role === 'employee' && 'Empleado'}
                             </span>
                           </td>
                           <td className="py-4 px-5">
@@ -911,7 +1068,7 @@ export default function AdminPanel({
                     </div>
 
                     <div className="flex flex-col md:items-end justify-center">
-                      <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg font-mono tracking-tight self-start md:self-auto">
+                      <span className="text-xs font-bold text-slate-855 bg-slate-105 px-2.5 py-1 rounded-lg font-mono tracking-tight self-start md:self-auto">
                         IP: {log.ipAddress}
                       </span>
                       <span className="text-[10px] text-red-500 font-semibold mt-1">
@@ -922,6 +1079,127 @@ export default function AdminPanel({
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {/* TAB 6: ACTIVITIES (MOVIMIENTOS DE EMPLEADOS) - ADMIN ONLY */}
+        {activeTab === 'activities' && currentUser.role === 'admin' && (
+          <div className="space-y-6 animate-fade-in font-sans">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 px-5 bg-slate-900 border border-slate-800 rounded-2xl gap-4 shadow-sm">
+              <div>
+                <h3 className="text-sm font-bold text-white">Registro Confidencial de Movimientos de Empleados</h3>
+                <p className="text-[11px] text-slate-400 mt-1">Bitácora electrónica segura para la auditoría de operaciones realizadas por el personal.</p>
+              </div>
+            </div>
+
+            <div className="border border-slate-800 bg-slate-900/40 rounded-2xl overflow-hidden shadow-lg">
+              {!activityLogs || activityLogs.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 text-xs">
+                  Aún no se registran movimientos ni actividades del personal en la base de datos de auditoría.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="border-b border-slate-800 bg-slate-950/50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <th className="py-3 px-5">Fecha y Hora</th>
+                        <th className="py-3 px-5">Usuario</th>
+                        <th className="py-3 px-5">Suceso u Acción</th>
+                        <th className="py-3 px-5">Descripción Detallada</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-850 text-xs text-slate-350">
+                      {activityLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-slate-900/30 transition-colors">
+                          <td className="py-3.5 px-5 font-mono text-[10px] text-slate-500 whitespace-nowrap">
+                            {formatDate(log.timestamp)}
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-indigo-300">@{log.username}</span>
+                              <span className="text-[10px] text-slate-400">{log.userFullName}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-5 whitespace-nowrap">
+                            <span className={`inline-flex rounded-lg px-2.5 py-0.5 text-[9px] font-extrabold uppercase border ${
+                              log.action.includes('Crear') 
+                                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-900/30'
+                                : log.action.includes('Eliminar')
+                                ? 'bg-rose-955/40 text-rose-400 border-rose-900/30'
+                                : 'bg-indigo-950/60 text-indigo-400 border-indigo-900/30'
+                            }`}>
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-5 leading-relaxed text-slate-300 max-w-xs font-medium">
+                            {log.details}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: STORE CONFIGURATION (CONFIGURACIÓN) */}
+        {(activeTab === 'settings') && (currentUser.role === 'admin' || currentUser.role === 'gerente') && (
+          <div className="space-y-6 animate-fade-in font-sans">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 px-5 bg-slate-900 border border-slate-800 rounded-2xl gap-4 shadow-sm">
+              <div>
+                <h3 className="text-sm font-bold text-white">Configuración Corporativa de la Tienda</h3>
+                <p className="text-[11px] text-slate-400 mt-1">Configure los datos de contacto y comerciales que se mostrarán en la web pública.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSettingsSubmit} className="bg-slate-900/40 border border-slate-850 p-6 rounded-2xl space-y-4 max-w-xl shadow-lg">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Nombre de la Tienda</label>
+                <input
+                  type="text"
+                  required
+                  value={tempStoreName}
+                  onChange={(e) => setTempStoreName(e.target.value)}
+                  placeholder="Ej. Cubanos en Miami"
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Número de Contacto / WhatsApp</label>
+                <input
+                  type="text"
+                  required
+                  value={tempContactNumber}
+                  onChange={(e) => setTempContactNumber(e.target.value)}
+                  placeholder="Ej. +1 (305) 555-0199"
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Horario de Trabajo Comercial</label>
+                <input
+                  type="text"
+                  required
+                  value={tempWorkingHours}
+                  onChange={(e) => setTempWorkingHours(e.target.value)}
+                  placeholder="Ej. Lunes a Sábado: 9:00 AM - 8:00 PM / Domingo: Cerrado"
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="bg-indigo-650 hover:bg-indigo-600 text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md shadow-indigo-650/10 transition-all border border-indigo-500/20 active:scale-98"
+                >
+                  Guardar Datos Comerciales
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </div>
@@ -967,11 +1245,11 @@ export default function AdminPanel({
                     onChange={(e) => setProductCategory(e.target.value)}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
                   >
-                    <option value="Accesorios">Accesorios</option>
-                    <option value="Audio">Audio</option>
-                    <option value="Viaje">Viaje</option>
-                    <option value="Periféricos">Periféricos</option>
-                    <option value="Hogar">Hogar</option>
+                    {Array.from(new Set([...categories, productCategory])).map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 
@@ -1028,6 +1306,38 @@ export default function AdminPanel({
                 />
               </div>
 
+              {/* Discount / Sales Checkbox */}
+              <div className="bg-amber-50/50 border border-amber-100 p-3.5 rounded-xl space-y-2.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isOnSale}
+                    onChange={(e) => setIsOnSale(e.target.checked)}
+                    className="h-4 w-4 rounded text-indigo-650 focus:ring-indigo-500 border-gray-300"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Ofrecer descuento especial</span>
+                    <span className="text-[10px] text-slate-450 block">Activa una promoción de oferta sobre el precio real</span>
+                  </div>
+                </label>
+
+                {isOnSale && (
+                  <div className="animate-fade-in pt-1">
+                    <label className="block text-[10px] font-bold text-amber-800 uppercase tracking-wide mb-1">Porcentaje de Descuento (%)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      required={isOnSale}
+                      value={discountPercent}
+                      onChange={(e) => setDiscountPercent(e.target.value)}
+                      placeholder="Ej. 15"
+                      className="w-full px-3 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-bold text-amber-900 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3 pt-3">
                 <button
                   type="button"
@@ -1044,6 +1354,184 @@ export default function AdminPanel({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CATEGORY MODAL */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-gray-100 p-5">
+              <div className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-indigo-650" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Gestión de Categorías
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCategoryModalOpen(false);
+                  setNewCatName('');
+                  setEditingCatOldName(null);
+                }}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-150 transition-colors"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content panel */}
+            <div className="p-5 flex-1 overflow-y-auto space-y-4">
+              {/* Insert Category form */}
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
+                <label className="block text-xs font-bold text-slate-700 mb-2">Crear nueva categoría</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej. Deporte, Oficina..."
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = newCatName.trim();
+                      if (!trimmed) {
+                        alert('Por favor ingrese un nombre de categoría válido.');
+                        return;
+                      }
+                      if (categories.includes(trimmed)) {
+                        alert('Esta categoría ya se encuentra registrada.');
+                        return;
+                      }
+                      onAddCategory(trimmed);
+                      setNewCatName('');
+                    }}
+                    className="bg-indigo-650 hover:bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-all active:scale-95 whitespace-nowrap"
+                  >
+                    Añadir
+                  </button>
+                </div>
+              </div>
+
+              {/* List of categories */}
+              <div className="space-y-2">
+                <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categorías Registradas</span>
+                <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto pr-1">
+                  {categories.map((cat) => {
+                    const productCount = products.filter((p) => p.category === cat).length;
+                    const isCurrentlyEditing = editingCatOldName === cat;
+
+                    return (
+                      <div key={cat} className="flex items-center justify-between py-2.5">
+                        {isCurrentlyEditing ? (
+                          <div className="flex items-center gap-2 flex-1 mr-2">
+                            <input
+                              type="text"
+                              value={editingCatNewName}
+                              onChange={(e) => setEditingCatNewName(e.target.value)}
+                              className="flex-1 px-2.5 py-1 bg-white border border-indigo-300 rounded-lg text-xs focus:outline-none text-slate-800 font-bold"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const trimmed = editingCatNewName.trim();
+                                if (!trimmed) {
+                                  alert('El nombre de la categoría no puede estar vacío.');
+                                  return;
+                                }
+                                if (trimmed === cat) {
+                                  setEditingCatOldName(null);
+                                  return;
+                                }
+                                if (categories.includes(trimmed) && trimmed !== cat) {
+                                  alert('Esa categoría ya existe.');
+                                  return;
+                                }
+                                onEditCategory(cat, trimmed);
+                                setEditingCatOldName(null);
+                              }}
+                              className="p-1 border border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"
+                              title="Guardar nombre"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCatOldName(null)}
+                              className="p-1 border border-slate-200 text-slate-500 bg-slate-50 hover:bg-slate-100 rounded-lg"
+                              title="Cancelar"
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-800">{cat}</span>
+                              <span className="px-2 py-0.5 text-[9px] font-extrabold bg-slate-100 text-slate-500 rounded-full">
+                                {productCount} {productCount === 1 ? 'prod' : 'prods'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCatOldName(cat);
+                                  setEditingCatNewName(cat);
+                                }}
+                                className="p-1.5 text-slate-450 hover:text-indigo-600 hover:bg-indigo-50/50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                                title="Editar"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (productCount > 0) {
+                                    if (!confirm(`La categoría "${cat}" tiene ${productCount} productos asociados. Si la eliminas, todos estos productos serán asignados de forma automática a otra categoría disponible. ¿Deseas continuar?`)) {
+                                      return;
+                                    }
+                                  } else {
+                                    if (!confirm(`¿Eliminar la categoría "${cat}"?`)) {
+                                      return;
+                                    }
+                                  }
+                                  onDeleteCategory(cat);
+                                }}
+                                className="p-1.5 text-slate-450 hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="bg-slate-50 border-t border-slate-100 p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCategoryModalOpen(false);
+                  setNewCatName('');
+                  setEditingCatOldName(null);
+                }}
+                className="w-full bg-slate-900 hover:bg-slate-850 text-white font-bold py-2 px-4 rounded-xl text-xs transition-colors"
+              >
+                Cerrar Panel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1095,14 +1583,20 @@ export default function AdminPanel({
               {/* Role */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Rol de Sistema</label>
-                <select
-                  value={userRole}
-                  onChange={(e) => setUserRole(e.target.value as 'admin' | 'employee')}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
-                >
-                  <option value="employee">Empleado operativo</option>
-                  <option value="admin">Administrador Principal</option>
-                </select>
+                {editingUser?.username === 'admin' ? (
+                  <div className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-bold">
+                    Administrador Principal (Rol Maestro)
+                  </div>
+                ) : (
+                  <select
+                    value={userRole}
+                    onChange={(e) => setUserRole(e.target.value as 'admin' | 'gerente' | 'employee')}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none"
+                  >
+                    <option value="employee">Empleado Operativo</option>
+                    <option value="gerente">GERENTE (Control Total sin Bitácora)</option>
+                  </select>
+                )}
               </div>
 
               {/* Password */}

@@ -6,16 +6,38 @@ export interface Product {
   imageUrl: string;
   category: string;
   stock: number;
+  isOnSale?: boolean;
+  discountPercent?: number;
 }
 
-export type UserRole = 'admin' | 'employee';
+export type UserRole = 'admin' | 'gerente' | 'employee';
 
 export interface User {
   id: string;
   username: string;
   fullName: string;
   role: UserRole;
-  password?: string; // Storing simple passwords for this offline-first system
+  password?: string; // Stored as SHA-256 hashed string
+  mustChangePassword?: boolean;
+  failedLoginAttempts?: number;
+  blockedUntil?: string; // ISO String when blocking expires
+}
+
+export interface StoreConfig {
+  storeName: string;
+  contactNumber: string;
+  workingHours: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  username: string;
+  userFullName: string;
+  role: UserRole;
+  action: string;
+  details: string;
+  timestamp: string;
 }
 
 export interface ClientDetails {
