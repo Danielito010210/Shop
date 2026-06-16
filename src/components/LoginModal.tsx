@@ -209,7 +209,7 @@ export default function LoginModal({
               handleCancelPasswordReset();
               onClose();
             }}
-            className="rounded-full p-1.5 text-slate-500 hover:bg-slate-900 hover:text-slate-300 transition-colors"
+            className="rounded-full p-1.5 text-slate-200 hover:bg-slate-900 hover:text-white transition-all border border-slate-800"
             id="close-login-modal-btn"
           >
             <X className="h-5 w-5" />
@@ -219,8 +219,8 @@ export default function LoginModal({
         {/* 1. FORCE PASSWORD CHANGE VIEW */}
         {changingPasswordUser ? (
           <form onSubmit={handlePasswordChangeSubmit} className="p-5 space-y-4" id="password-reset-form">
-            <div className="p-3 bg-indigo-950/40 border border-indigo-900/40 text-indigo-200 text-xs rounded-xl leading-relaxed">
-              <p className="font-bold mb-1">🔐 Cambio Obligatorio de Contraseña</p>
+            <div className="p-3 bg-indigo-950/60 border border-indigo-700 text-indigo-100 text-xs rounded-xl leading-relaxed font-bold">
+              <p className="font-extrabold text-white mb-1 leading-snug">🔐 Cambio Obligatorio de Contraseña</p>
               Es su primera sesión como empleado. Debe crear una contraseña personalizada de alta seguridad para proteger la integridad de los datos de la tienda.
             </div>
 
@@ -299,14 +299,14 @@ export default function LoginModal({
               <button
                 type="button"
                 onClick={handleCancelPasswordReset}
-                className="w-1/3 bg-slate-900 hover:bg-slate-850 text-slate-300 font-bold py-2.5 px-4 rounded-xl text-xs transition-all border border-slate-800 active:scale-98"
+                className="w-1/3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition-all border border-slate-600 active:scale-98 cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={!(strength.length && strength.letter && strength.number && strength.special)}
-                className="w-2/3 bg-indigo-650 hover:bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-lg transition-all border border-transparent hover:border-indigo-500/20 active:scale-98"
+                className="w-2/3 bg-indigo-600 hover:bg-indigo-550 disabled:bg-slate-850 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-white font-extrabold py-2.5 px-4 rounded-xl text-xs shadow-lg transition-all border border-indigo-500 active:scale-98 cursor-pointer"
               >
                 Actualizar y Entrar
               </button>
@@ -316,7 +316,7 @@ export default function LoginModal({
           /* 2. STANDARD LOGIN FORM */
           <form onSubmit={handleSubmit} className="p-5 space-y-4" id="standard-login-form">
             {errorMsg && (
-              <div className="p-3 bg-red-950/40 border border-red-900/50 text-red-200 text-xs rounded-xl font-bold flex items-center gap-1.5 leading-relaxed">
+              <div className="p-3 bg-red-955/60 border border-red-500 text-white text-xs rounded-xl font-bold flex items-center gap-1.5 leading-relaxed">
                 <ShieldAlert className="h-4.5 w-4.5 text-red-400 flex-shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -326,9 +326,9 @@ export default function LoginModal({
 
             {/* Username Input */}
             <div>
-              <label className="block text-xs font-bold text-slate-200 mb-1.5">Usuario de Trabajo</label>
+              <label className="block text-xs font-extrabold text-slate-100 mb-1.5">Usuario de Trabajo</label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-300">
                   <User className="h-4 w-4" />
                 </span>
                 <input
@@ -337,7 +337,7 @@ export default function LoginModal({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Ej. admin"
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:bg-slate-950 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-950 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-extrabold"
                   id="login-username-input"
                 />
               </div>
@@ -345,9 +345,9 @@ export default function LoginModal({
 
             {/* Password Input */}
             <div>
-              <label className="block text-xs font-bold text-slate-200 mb-1.5">Contraseña</label>
+              <label className="block text-xs font-extrabold text-slate-100 mb-1.5">Contraseña</label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-300">
                   <Lock className="h-4 w-4" />
                 </span>
                 <input
@@ -356,23 +356,23 @@ export default function LoginModal({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:bg-slate-950 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
+                  className="w-full pl-9 pr-10 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-950 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-extrabold"
                   id="login-password-input"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-300"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-300 hover:text-white"
                   id="toggle-show-pass-btn"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4 text-indigo-400" /> : <Eye className="h-4 w-4 text-indigo-400" />}
                 </button>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-indigo-650 hover:bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-lg shadow-indigo-650/15 transition-all border border-indigo-500/20 active:scale-98"
+              className="w-full bg-indigo-600 hover:bg-indigo-550 text-white font-extrabold py-3 px-4 rounded-xl text-xs shadow-lg shadow-indigo-600/30 transition-all border border-indigo-500 active:scale-98 cursor-pointer"
               id="login-submit-btn"
             >
               Iniciar Sesión

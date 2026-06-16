@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingBag, 
   ArrowRight, 
@@ -224,6 +224,116 @@ export default function App() {
   useEffect(() => {
     setLocalStorageData('omnistore_activity_logs', activityLogs);
   }, [activityLogs]);
+
+  // --- Dynamic Title & Cloudflare CDN Cache Purge System ---
+  useEffect(() => {
+    if (storeConfig?.storeName) {
+      document.title = storeConfig.storeName;
+    }
+  }, [storeConfig?.storeName]);
+
+  const triggerCloudflarePurgeCache = async () => {
+    const cfEnabled = storeConfig?.cloudflareEnabled;
+    const cfZoneId = storeConfig?.cloudflareZoneId;
+    const cfApiToken = storeConfig?.cloudflareApiToken;
+    const cfProxyUrl = storeConfig?.cloudflareProxyUrl;
+
+    if (!cfEnabled || (!cfZoneId && !cfProxyUrl)) {
+      console.log('Cloudflare Purge checked: disabled or missing parameters');
+      return;
+    }
+
+    try {
+      let response;
+      if (cfProxyUrl) {
+        response = await fetch(cfProxyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'purge_everything',
+            zone_id: cfZoneId,
+            timestamp: new Date().toISOString()
+          })
+        });
+      } else if (cfZoneId && cfApiToken) {
+        response = await fetch(`https://api.cloudflare.com/client/v4/zones/${cfZoneId}/purge_cache`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${cfApiToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ purge_everything: true })
+        });
+      }
+
+      const timestampISO = new Date().toISOString();
+      if (response && response.ok) {
+        const logMsg = {
+          id: `act-cf-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          timestamp: timestampISO,
+          username: currentUser?.username || 'sistema',
+          userFullName: currentUser?.fullName || 'Automatización Pública',
+          action: 'CDN Cloudflare Actualizado',
+          details: 'Se completó con éxito el Purge Everything de la caché.'
+        };
+        setActivityLogs((prev) => [logMsg, ...prev]);
+        console.log('Cloudflare CDN purged successfully.');
+      } else {
+        const errorText = response ? await response.text() : 'No response from Server';
+        const logMsg = {
+          id: `act-cf-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          timestamp: timestampISO,
+          username: currentUser?.username || 'sistema',
+          userFullName: currentUser?.fullName || 'Automatización Pública',
+          action: 'Error CDN Cloudflare',
+          details: `Error al purgar los archivos de producción: ${errorText.substring(0, 100)}`
+        };
+        setActivityLogs((prev) => [logMsg, ...prev]);
+        console.warn('Cloudflare CDN purge error:', errorText);
+      }
+    } catch (e: any) {
+      const timestampISO = new Date().toISOString();
+      const isCorsError = e instanceof TypeError;
+      const detailInfo = isCorsError 
+        ? 'Restricción CORS del navegador. Se recomienda configurar un Proxy URL / Cloudflare Worker en producción para evadir el bloqueo de origen y mantener sus credenciales seguras.'
+        : `Fallo de conexión: ${e.message}`;
+
+      const logMsg = {
+        id: `act-cf-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        timestamp: timestampISO,
+        username: currentUser?.username || 'sistema',
+        userFullName: currentUser?.fullName || 'Automatización Pública',
+        action: 'Conexión Cloudflare / CORS',
+        details: detailInfo
+      };
+      setActivityLogs((prev) => [logMsg, ...prev]);
+      console.warn('Network issue purging Cloudflare cache:', e);
+    }
+  };
+
+  const isInitialMount = useRef(true);
+  const purgeTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (purgeTimeoutRef.current) {
+      clearTimeout(purgeTimeoutRef.current);
+    }
+
+    purgeTimeoutRef.current = setTimeout(() => {
+      triggerCloudflarePurgeCache();
+    }, 2500);
+
+    return () => {
+      if (purgeTimeoutRef.current) {
+        clearTimeout(purgeTimeoutRef.current);
+      }
+    };
+  }, [products, categories, storeConfig]);
 
   // --- Cart operations ---
   const handleAddToCart = (product: Product) => {
@@ -491,6 +601,7 @@ export default function App() {
             onClearActivityLogs={handleClearActivityLogs}
             onClearOrders={handleClearOrders}
             onUpdateStoreConfig={(config) => setStoreConfig(config)}
+            onTriggerCloudflarePurge={triggerCloudflarePurgeCache}
           />
         </main>
       ) : (

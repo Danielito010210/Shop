@@ -90,22 +90,22 @@ export default function ProductCard({ product, onAddToCart, addedIndicator }: Pr
           <button
             onClick={() => !isOutOfStock && onAddToCart(product)}
             disabled={isOutOfStock}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-sans text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-sans text-xs font-extrabold transition-all border shadow-lg ${
               isOutOfStock
-                ? 'bg-slate-800/50 text-slate-500 border border-slate-850 cursor-not-allowed'
+                ? 'bg-slate-850 text-slate-500 border-slate-800 cursor-not-allowed'
                 : addedIndicator
-                ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-600/30 border border-indigo-400/30'
-                : 'bg-indigo-650/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-650 hover:text-white hover:border-indigo-500 active:scale-95 shadow-md'
+                ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-700/20'
+                : 'bg-indigo-650 text-white border-indigo-500 hover:bg-indigo-600 hover:border-indigo-400 active:scale-95 hover:shadow-indigo-600/25'
             }`}
           >
             {addedIndicator ? (
               <>
-                <Check className="h-3.5 w-3.5 animate-bounce" />
+                <Check className="h-4 w-4 animate-scale-up" />
                 <span>Agregado</span>
               </>
             ) : (
               <>
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
                 <span>Añadir</span>
               </>
             )}

@@ -42,13 +42,13 @@ export default function Navbar({
         <div className="flex items-center gap-2 sm:gap-4 font-sans text-sm">
           <button
             onClick={() => onChangeView('store')}
-            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-bold transition-all ${
+            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-extrabold transition-all border ${
               currentView === 'store'
-                ? 'bg-slate-900 text-white border border-slate-800'
-                : 'text-slate-400 hover:bg-slate-900/50 hover:text-white'
+                ? 'bg-indigo-650 text-white border-indigo-500/50 shadow-md shadow-indigo-600/10'
+                : 'text-slate-200 border-slate-800 bg-slate-900/30 hover:bg-slate-900 hover:text-white hover:border-slate-700'
             }`}
           >
-            <Store className="h-4 w-4" />
+            <Store className="h-4 w-4 text-indigo-400" />
             <span className="hidden sm:inline">Tienda</span>
           </button>
 
@@ -60,13 +60,13 @@ export default function Navbar({
                 onOpenLoginModal();
               }
             }}
-            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-bold transition-all ${
+            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-extrabold transition-all border ${
               currentView === 'admin'
-                ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-650/20 border border-indigo-500/35'
-                : 'text-slate-400 hover:bg-slate-900/50 hover:text-white'
+                ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-650/20 border-indigo-500/50'
+                : 'text-slate-200 border-slate-800 bg-slate-900/30 hover:bg-slate-900 hover:text-white hover:border-slate-700'
             }`}
           >
-            {currentUser ? <LayoutDashboard className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
+            {currentUser ? <LayoutDashboard className="h-4 w-4 text-indigo-400" /> : <LogIn className="h-4 w-4 text-indigo-400" />}
             <span>{currentUser ? 'Panel Personal' : 'Miembros'}</span>
           </button>
 
@@ -92,9 +92,9 @@ export default function Navbar({
             <button
               onClick={onLogout}
               title="Cerrar Sesión"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-red-950/40 hover:text-red-400 border border-transparent hover:border-red-900/55 transition-all"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-200 hover:bg-red-950 hover:text-red-400 border border-slate-800 hover:border-red-900 transition-all shadow-sm"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4 text-red-400" />
             </button>
           )}
 
@@ -104,10 +104,10 @@ export default function Navbar({
           <button
             onClick={onOpenCart}
             id="cart-button-nav"
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-850 hover:text-white transition-all active:scale-95"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800 hover:text-white transition-all active:scale-95 shadow-sm"
             aria-label="Ver Carrito de compra"
           >
-            <ShoppingCart className="h-5 w-5" />
+            <ShoppingCart className="h-5 w-5 text-indigo-400" />
             {cartCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-650 text-[10px] font-bold text-white shadow-md border border-indigo-500/25">
                 {cartCount}

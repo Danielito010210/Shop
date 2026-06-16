@@ -152,7 +152,7 @@ export default function CartModal({
           </div>
           <button
             onClick={step === 'success' ? handleResetAndClose : onClose}
-            className="rounded-full p-1.5 text-slate-500 hover:bg-slate-900 hover:text-slate-300 transition-colors"
+            className="rounded-full p-1.5 text-slate-200 hover:bg-slate-900 hover:text-white transition-all border border-slate-800"
           >
             <X className="h-5 w-5" />
           </button>
@@ -209,14 +209,14 @@ export default function CartModal({
                       <div className="flex items-center gap-2">
                         <button 
                           onClick={() => onUpdateQuantity(item.product.id, -1)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-indigo-650 hover:text-white hover:border-indigo-400 active:scale-95 text-xs font-bold"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-600 bg-slate-900 text-white hover:bg-indigo-600 hover:text-white hover:border-indigo-400 active:scale-95 text-xs font-black transition-all"
                         >
                           -
                         </button>
-                        <span className="text-xs font-bold text-white w-4 text-center">{item.quantity}</span>
+                        <span className="text-sm font-black text-white w-5 text-center">{item.quantity}</span>
                         <button 
                           onClick={() => onUpdateQuantity(item.product.id, 1)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-indigo-650 hover:text-white hover:border-indigo-400 active:scale-95 text-xs font-bold"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-600 bg-slate-900 text-white hover:bg-indigo-600 hover:text-white hover:border-indigo-400 active:scale-95 text-xs font-black transition-all"
                           disabled={item.quantity >= item.product.stock}
                         >
                           +
@@ -226,7 +226,7 @@ export default function CartModal({
                       {/* Remove item button */}
                       <button 
                         onClick={() => onRemoveItem(item.product.id)}
-                        className="p-1.5 text-red-400 hover:bg-rose-955/20 hover:text-red-500 rounded-lg border border-transparent hover:border-red-900/30 transition-colors"
+                        className="p-2 text-rose-450 hover:bg-rose-950/60 hover:text-rose-400 rounded-lg border border-rose-900/50 hover:border-rose-700 transition-all font-bold"
                         title="Quitar"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -459,24 +459,24 @@ export default function CartModal({
               <button
                 onClick={handleNextStep}
                 disabled={cartItems.length === 0}
-                className="w-full flex items-center justify-center gap-2 bg-indigo-650 hover:bg-indigo-600 border border-indigo-500/20 text-white font-bold py-3 px-4 rounded-xl text-sm shadow-lg shadow-indigo-600/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none active:scale-98"
+                className="w-full h-11 flex items-center justify-center gap-2 bg-indigo-650 hover:bg-indigo-600 border border-indigo-400 text-white font-black py-3 px-4 rounded-xl text-sm shadow-xl shadow-indigo-600/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none active:scale-98 cursor-pointer"
               >
                 <span>Proceder al Pago</span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 text-white" />
               </button>
             ) : (
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setStep('cart')}
-                  className="flex-1 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-350 font-bold py-3 px-4 rounded-xl text-sm transition-all active:scale-98"
+                  className="flex-1 h-11 bg-slate-900 border border-slate-600 hover:bg-slate-800 text-white font-black py-3 px-4 rounded-xl text-sm transition-all active:scale-98 cursor-pointer"
                 >
                   Atrás
                 </button>
                 <button
                   type="button"
                   onClick={handleSubmitCheckout}
-                  className="flex-2 bg-indigo-650 hover:bg-indigo-600 border border-indigo-500/35 text-white font-bold py-3 px-6 rounded-xl text-sm shadow-lg shadow-indigo-600/15 transition-all active:scale-98"
+                  className="flex-2 h-11 bg-indigo-650 hover:bg-indigo-600 border border-indigo-400 text-white font-black py-3 px-6 rounded-xl text-sm shadow-xl shadow-indigo-600/25 transition-all active:scale-98 cursor-pointer"
                 >
                   Confirmar Pedido
                 </button>
@@ -489,7 +489,7 @@ export default function CartModal({
           <div className="border-t border-slate-900 bg-slate-950 p-5">
             <button
               onClick={handleResetAndClose}
-              className="w-full bg-slate-900 border border-slate-800 hover:bg-slate-850 text-white font-bold py-3 px-4 rounded-xl text-sm shadow-md transition-all active:scale-98"
+              className="w-full h-11 bg-indigo-650 hover:bg-indigo-600 border border-indigo-400 text-white font-black py-3 px-4 rounded-xl text-sm shadow-xl transition-all active:scale-98 cursor-pointer"
             >
               Entendido, continuar comprando
             </button>
