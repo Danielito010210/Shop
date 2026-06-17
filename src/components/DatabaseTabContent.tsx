@@ -35,6 +35,8 @@ interface DatabaseTabContentProps {
   categories: string[];
   orders: Order[];
   onRefreshSupabaseClient: () => void;
+  onTriggerAlert?: (title: string, message: string) => void;
+  onTriggerConfirm?: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 export default function DatabaseTabContent({
@@ -42,7 +44,9 @@ export default function DatabaseTabContent({
   users,
   categories,
   orders,
-  onRefreshSupabaseClient
+  onRefreshSupabaseClient,
+  onTriggerAlert,
+  onTriggerConfirm
 }: DatabaseTabContentProps) {
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
@@ -83,7 +87,11 @@ export default function DatabaseTabContent({
     onRefreshSupabaseClient();
     
     // Display feedback
-    alert('Configuración guardada de forma segura.');
+    if (onTriggerAlert) {
+      onTriggerAlert('Configuración Realizada', 'Configuración guardada de forma segura. Probando conexión...');
+    } else {
+      alert('Configuración guardada de forma segura.');
+    }
     triggerConnectionTest();
   };
 
@@ -128,50 +136,64 @@ export default function DatabaseTabContent({
 
   const handleSeedDatabase = async () => {
     if (!getSavedSupabaseConfig().enabled) {
-      alert('La base de datos Supabase debe estar "Habilitada" para poder sembrar registros.');
+      if (onTriggerAlert) {
+        onTriggerAlert('Atención', 'La base de datos Supabase debe estar "Habilitada" para poder sembrar registros.');
+      } else {
+        alert('La base de datos Supabase debe estar "Habilitada" para poder sembrar registros.');
+      }
       return;
     }
 
-    const confirmSeed = window.confirm(
-      '¿Está seguro de que desea sembrar la base de datos? Esto insertará las categorías, productos, usuarios iniciales y órdenes de muestra en su base de datos Supabase conectada.'
-    );
-    if (!confirmSeed) return;
+    const performSeed = async () => {
+      setIsSeeding(true);
+      setSeedReport(null);
 
-    setIsSeeding(true);
-    setSeedReport(null);
+      try {
+        // 1. Categories
+        const defaultCats = categories.length > 0 ? categories : ['Accesorios', 'Audio', 'Viaje', 'Periféricos', 'Hogar'];
+        for (const cat of defaultCats) {
+          await dbSaveCategory(cat);
+        }
 
-    try {
-      // 1. Categories
-      const defaultCats = categories.length > 0 ? categories : ['Accesorios', 'Audio', 'Viaje', 'Periféricos', 'Hogar'];
-      for (const cat of defaultCats) {
-        await dbSaveCategory(cat);
+        // 2. Products
+        const prodsToSeed = products.length > 0 ? products : INITIAL_PRODUCTS;
+        for (const prod of prodsToSeed) {
+          await dbSaveProduct(prod);
+        }
+
+        // 3. Users
+        const usersToSeed = users.length > 0 ? users : INITIAL_USERS;
+        for (const u of usersToSeed) {
+          await dbSaveUser(u);
+        }
+
+        // 4. Config
+        await dbSaveStoreConfig({
+          storeName: 'Cubanos en Miami',
+          contactNumber: '+1 (305) 555-0199',
+          workingHours: 'Lunes a Sábado: 9:00 AM - 8:00 PM / Domingo: Cerrado'
+        });
+
+        setSeedReport('¡Éxito! Tablas sembradas y sincronizadas. Puede verificar su base de datos de Supabase.');
+        onRefreshSupabaseClient();
+      } catch (err: any) {
+        setSeedReport(`Error en el sembrado: ${err?.message || err}`);
+      } finally {
+        setIsSeeding(false);
       }
+    };
 
-      // 2. Products
-      const prodsToSeed = products.length > 0 ? products : INITIAL_PRODUCTS;
-      for (const prod of prodsToSeed) {
-        await dbSaveProduct(prod);
-      }
-
-      // 3. Users
-      const usersToSeed = users.length > 0 ? users : INITIAL_USERS;
-      for (const u of usersToSeed) {
-        await dbSaveUser(u);
-      }
-
-      // 4. Config
-      await dbSaveStoreConfig({
-        storeName: 'Cubanos en Miami',
-        contactNumber: '+1 (305) 555-0199',
-        workingHours: 'Lunes a Sábado: 9:00 AM - 8:00 PM / Domingo: Cerrado'
-      });
-
-      setSeedReport('¡Éxito! Tablas sembradas y sincronizadas. Puede verificar su base de datos de Supabase.');
-      onRefreshSupabaseClient();
-    } catch (err: any) {
-      setSeedReport(`Error en el sembrado: ${err?.message || err}`);
-    } finally {
-      setIsSeeding(false);
+    if (onTriggerConfirm) {
+      onTriggerConfirm(
+        'Sembrar Base de Datos',
+        '¿Está seguro de que desea sembrar la base de datos? Esto insertará las categorías, productos, usuarios iniciales y config de muestra en su base de datos Supabase conectada.',
+        performSeed
+      );
+    } else {
+      const confirmSeed = window.confirm(
+        '¿Está seguro de que desea sembrar la base de datos? Esto insertará las categorías, productos, usuarios iniciales y config de muestra en su base de datos Supabase conectada.'
+      );
+      if (confirmSeed) performSeed();
     }
   };
 

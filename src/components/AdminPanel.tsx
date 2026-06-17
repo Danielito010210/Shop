@@ -22,7 +22,8 @@ import {
   Settings,
   History,
   Sparkles,
-  Upload
+  Upload,
+  ArrowRight
 } from 'lucide-react';
 import DatabaseTabContent from './DatabaseTabContent';
 import { 
@@ -63,7 +64,6 @@ interface AdminPanelProps {
   onClearActivityLogs?: () => void;
   onClearOrders?: () => void;
   onUpdateStoreConfig: (config: any) => void;
-  onTriggerCloudflarePurge?: () => Promise<void>;
   onRefreshSupabaseClient?: () => void;
 }
 
@@ -90,7 +90,6 @@ export default function AdminPanel({
   onClearActivityLogs,
   onClearOrders,
   onUpdateStoreConfig,
-  onTriggerCloudflarePurge,
   onRefreshSupabaseClient = () => {}
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -123,28 +122,12 @@ export default function AdminPanel({
   const [tempStoreName, setTempStoreName] = useState(storeConfig?.storeName || 'Cubanos en Miami');
   const [tempContactNumber, setTempContactNumber] = useState(storeConfig?.contactNumber || '');
   const [tempWorkingHours, setTempWorkingHours] = useState(storeConfig?.workingHours || '');
-  const [tempCfZoneId, setTempCfZoneId] = useState(storeConfig?.cloudflareZoneId || '');
-  const [tempCfApiToken, setTempCfApiToken] = useState(storeConfig?.cloudflareApiToken || '');
-  const [tempCfEmail, setTempCfEmail] = useState(storeConfig?.cloudflareEmail || '');
-  const [tempCfEnabled, setTempCfEnabled] = useState(storeConfig?.cloudflareEnabled || false);
-  const [tempCfProxyUrl, setTempCfProxyUrl] = useState(storeConfig?.cloudflareProxyUrl || '');
-  
-  // Custom manual purge loader states
-  const [isPurging, setIsPurging] = useState(false);
-  const [purgeStatus, setPurgeStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [showCfToken, setShowCfToken] = useState(false);
-  const [showCfDocumentation, setShowCfDocumentation] = useState(false);
 
   useEffect(() => {
     if (storeConfig) {
       setTempStoreName(storeConfig.storeName || 'Cubanos en Miami');
       setTempContactNumber(storeConfig.contactNumber || '');
       setTempWorkingHours(storeConfig.workingHours || '');
-      setTempCfZoneId(storeConfig.cloudflareZoneId || '');
-      setTempCfApiToken(storeConfig.cloudflareApiToken || '');
-      setTempCfEmail(storeConfig.cloudflareEmail || '');
-      setTempCfEnabled(storeConfig.cloudflareEnabled || false);
-      setTempCfProxyUrl(storeConfig.cloudflareProxyUrl || '');
     }
   }, [storeConfig]);
 
@@ -366,52 +349,7 @@ export default function AdminPanel({
       storeName: tempStoreName,
       contactNumber: tempContactNumber,
       workingHours: tempWorkingHours,
-      cloudflareEnabled: tempCfEnabled,
-      cloudflareZoneId: tempCfZoneId,
-      cloudflareApiToken: tempCfApiToken,
-      cloudflareEmail: tempCfEmail,
-      cloudflareProxyUrl: tempCfProxyUrl,
     });
-  };
-
-  const updateCloudflareConfig = (key: string, value: any) => {
-    const nextCfZoneId = key === 'cloudflareZoneId' ? value : tempCfZoneId;
-    const nextCfApiToken = key === 'cloudflareApiToken' ? value : tempCfApiToken;
-    const nextCfEmail = key === 'cloudflareEmail' ? value : tempCfEmail;
-    const nextCfProxyUrl = key === 'cloudflareProxyUrl' ? value : tempCfProxyUrl;
-    const nextCfEnabled = key === 'cloudflareEnabled' ? value : tempCfEnabled;
-
-    if (key === 'cloudflareZoneId') setTempCfZoneId(value);
-    if (key === 'cloudflareApiToken') setTempCfApiToken(value);
-    if (key === 'cloudflareEmail') setTempCfEmail(value);
-    if (key === 'cloudflareProxyUrl') setTempCfProxyUrl(value);
-    if (key === 'cloudflareEnabled') setTempCfEnabled(value);
-
-    onUpdateStoreConfig({
-      storeName: tempStoreName,
-      contactNumber: tempContactNumber,
-      workingHours: tempWorkingHours,
-      cloudflareEnabled: nextCfEnabled,
-      cloudflareZoneId: nextCfZoneId,
-      cloudflareApiToken: nextCfApiToken,
-      cloudflareEmail: nextCfEmail,
-      cloudflareProxyUrl: nextCfProxyUrl,
-    });
-  };
-
-  const handleManualPurge = async () => {
-    if (!onTriggerCloudflarePurge) return;
-    setIsPurging(true);
-    setPurgeStatus('idle');
-    try {
-      await onTriggerCloudflarePurge();
-      setPurgeStatus('success');
-    } catch (e) {
-      setPurgeStatus('error');
-    } finally {
-      setIsPurging(false);
-      setTimeout(() => setPurgeStatus('idle'), 6000);
-    }
   };
 
   const filteredProducts = products.filter(p => 
@@ -1372,184 +1310,64 @@ export default function AdminPanel({
                 </div>
               </form>
 
-              {/* INTEGRATION CON CDN CLOUDFLARE SECTOR */}
+              {/* SUPABASE STATUS AND INTEGRATION OVERVIEW */}
               <div className="bg-slate-900 border border-slate-705 p-6 rounded-2xl space-y-5 flex flex-col justify-between shadow-lg">
                 <div className="space-y-4">
                   <div className="border-b border-slate-800 pb-2 flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-indigo-400">Automatización Cloudflare</h4>
-                      <p className="text-[10px] text-slate-350 mt-0.5">Purga automática ("Purge Everything") cuando actualizas productos, inventario o categorías.</p>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-indigo-400">Infraestructura Base de Datos (Supabase)</h4>
+                      <p className="text-[10px] text-slate-350 mt-0.5">Persistencia de datos relacional Postgres con protección de nivel empresarial.</p>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${tempCfEnabled ? 'bg-indigo-950 text-indigo-300 border-indigo-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-                      {tempCfEnabled ? 'Habilitado' : 'Inactivo'}
+                    <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-indigo-950 text-indigo-300 border border-indigo-500/30 animate-pulse">
+                      PostgreSQL
                     </span>
                   </div>
 
-                  {/* Enable Switch toggle */}
-                  <div className="flex items-center justify-between bg-slate-950/60 p-3.5 border border-slate-800 rounded-xl">
-                    <div className="pr-4">
-                      <span className="block text-xs font-black text-white">Activar Sincronización CDN</span>
-                      <span className="block text-[10px] text-slate-400 mt-0.5">Haga click para activar o desactivar la autolimpieza de caché en producción.</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => updateCloudflareConfig('cloudflareEnabled', !tempCfEnabled)}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${tempCfEnabled ? 'bg-indigo-650' : 'bg-slate-800'}`}
-                    >
-                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${tempCfEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
+                  <div className="space-y-3.5 text-xs text-slate-250 leading-relaxed bg-slate-950/60 p-4 border border-slate-850 rounded-xl">
+                    <p className="font-bold text-[11px] text-white flex items-center gap-1.5">
+                      <Database className="h-4 w-4 text-emerald-400" />
+                      <span>Motor Relacional Activo</span>
+                    </p>
+                    <p className="text-[10.5px] text-slate-300">
+                      Su sistema ahora utiliza <strong>Supabase</strong> para sincronizar e inmortalizar las ventas, los usuarios, las bitácoras de seguridad e inventario, eliminando la vulnerabilidad de pérdida de datos por caché del navegador.
+                    </p>
+
+                    <ul className="text-[10px] text-slate-400 space-y-2 pt-1 border-t border-slate-900">
+                      <li className="flex items-start gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Sincronización simultánea en la nube para inventario, precios y estados de entregas.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Gestión y encriptación de credenciales de operadores bajo algoritmos criptográficos.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Bitácora de movimientos y accesos imborrable para auditoría.</span>
+                      </li>
+                    </ul>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="p-3 bg-slate-950 border border-slate-900 rounded-xl flex items-center justify-between gap-3 text-[10px] text-slate-400 leading-normal">
                     <div>
-                      <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Zone ID (ID de Zona)</label>
-                      <input
-                        type="text"
-                        value={tempCfZoneId}
-                        onChange={(e) => updateCloudflareConfig('cloudflareZoneId', e.target.value)}
-                        placeholder="Ej. d3b07384d113edec49eaa6238ad5ff00"
-                        className="w-full px-4 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
-                      />
+                      <span className="font-bold text-slate-200 block">¿Desea configurar o diagnosticar las tablas?</span>
+                      <span className="block text-[9px] mt-0.5">Verifique el esquema, copie el script de tablas o siembre datos de prueba.</span>
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Cloudflare API Token / Key</label>
-                      <div className="relative">
-                        <input
-                          type={showCfToken ? 'text' : 'password'}
-                          value={tempCfApiToken}
-                          onChange={(e) => updateCloudflareConfig('cloudflareApiToken', e.target.value)}
-                          placeholder="Ingrese Token de Acceso"
-                          className="w-full pl-4 pr-10 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCfToken(!showCfToken)}
-                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-100"
-                        >
-                          {showCfToken ? <XCircle className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-black text-slate-100 mb-1 px-1 uppercase tracking-wider text-[10px]">Email de Cuenta (Opcional)</label>
-                        <input
-                          type="email"
-                          value={tempCfEmail}
-                          onChange={(e) => updateCloudflareConfig('cloudflareEmail', e.target.value)}
-                          placeholder="Ej. admin@miweb.com"
-                          className="w-full px-3 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none font-extrabold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-black text-slate-100 mb-1 px-1 uppercase tracking-wider text-[10px]">Proxy / Hook URL (Opcional CORS)</label>
-                        <input
-                          type="url"
-                          value={tempCfProxyUrl}
-                          onChange={(e) => updateCloudflareConfig('cloudflareProxyUrl', e.target.value)}
-                          placeholder="Ej. https://mi-worker.domain.workers.dev"
-                          className="w-full px-3 py-2 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:outline-none font-extrabold"
-                        />
-                      </div>
-                    </div>
-
-                    {/* INTERACTIVE GUIDE ON GETTING CLOUDFLARE PARAMETERS & USING THE "CLEAR CACHE" TEMPLATE */}
-                    <div className="mt-3">
+                    {currentUser.role === 'admin' && (
                       <button
                         type="button"
-                        onClick={() => setShowCfDocumentation(!showCfDocumentation)}
-                        className="text-[11px] font-black text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 focus:outline-none py-1.5 px-3 bg-slate-950/80 border border-slate-800 rounded-lg hover:border-slate-750 transition-all cursor-pointer w-full justify-center"
+                        onClick={() => setActiveTab('database')}
+                        className="px-3.5 py-1.5 bg-indigo-950 hover:bg-indigo-900 border border-indigo-400/30 text-indigo-300 rounded-xl text-[10.5px] font-black transition-all shrink-0 cursor-pointer active:scale-95 flex items-center gap-1"
                       >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span>{showCfDocumentation ? 'Ocultar Guía de Credenciales' : '¿Cómo obtengo el ZONE ID y API Token (Plantilla Clear Cache)?'}</span>
+                        <span>Ir a Panel DB</span>
+                        <ArrowRight className="h-3 w-3" />
                       </button>
-
-                      {showCfDocumentation && (
-                        <div className="mt-2.5 p-4 bg-slate-955/90 border border-indigo-900/60 rounded-xl space-y-3.5 text-xs text-slate-200 animate-slide-up shadow-inner leading-relaxed">
-                          <div className="border-b border-indigo-950 pb-1.5">
-                            <span className="text-white font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                              🔑 Guía de Configuración Cloudflare CDN
-                            </span>
-                            <p className="text-[10px] text-slate-400 mt-1">Siga estos pasos exactos para configurar la sincronización automática de su catálogo.</p>
-                          </div>
-
-                          <div className="space-y-2.5">
-                            <div>
-                              <span className="block font-black text-indigo-300 text-[10.5px]">1. ID de Zona (ZONE ID) — ¿Qué es y dónde encontrarlo?</span>
-                              <span className="block text-[10px] text-slate-300 mt-0.5">
-                                Identifica de forma única tu sitio web dentro de Cloudflare. Para obtenerlo:
-                              </span>
-                              <ol className="list-decimal pl-4 text-[10px] text-slate-400 mt-1 space-y-0.5">
-                                <li>Inicia sesión en tu panel de control de <strong>Cloudflare</strong>.</li>
-                                <li>Selecciona tu dominio (ej. <code className="text-indigo-300 font-mono">miweb.com</code>).</li>
-                                <li>En el panel lateral izquierdo, asegúrate de estar en <strong>"Overview"</strong> (Inicio).</li>
-                                <li>Baja en la columna lateral derecha hasta la sección <strong>"API"</strong>.</li>
-                                <li>Copia el valor que aparece en el campo <strong>"Zone ID"</strong> o <strong>"ID de zona"</strong>.</li>
-                              </ol>
-                            </div>
-
-                            <div>
-                              <span className="block font-black text-indigo-300 text-[10.5px]">2. Token de API — Cómo crear la Plantilla "Clear Cache / Vaciar Caché"</span>
-                              <span className="block text-[10px] text-slate-300 mt-0.5">
-                                Permite que esta web de administración envíe solicitudes seguras para limpiar el caché sin exponer tu contraseña global.
-                              </span>
-                              <ol className="list-decimal pl-4 text-[10px] text-slate-400 mt-1 space-y-0.5">
-                                <li>En Cloudflare, haz clic en el icono de tu perfil arriba a la derecha y selecciona <strong>"My Profile"</strong> (Mi perfil pública).</li>
-                                <li>Haz clic en la pestaña de <strong>"API Tokens"</strong> (Tokens de API) y presiona el botón azul <strong>"Create Token"</strong> (Crear token).</li>
-                                <li>Busca en la lista de plantillas oficiales una llamada <strong>"Clear Cache"</strong> (en español: <strong>"Vaciar caché de zona"</strong> o <strong>"Zone Purge"</strong>).</li>
-                                <li>Haz clic en el botón <strong>"Use template"</strong> (Usar plantilla) que está al lado.</li>
-                                <li>En <em>Zone Resources</em> (Recursos de zona), configura: <code className="text-indigo-300 font-mono">Include &gt; Specific zone &gt; [Tu Dominio]</code>.</li>
-                                <li>Deja los demás campos con sus valores por defecto y presiona <strong>"Continue to summary"</strong> y luego <strong>"Create Token"</strong>.</li>
-                                <li>Copia el Token largo generado y pégalo aquí arriba. (Guárdalo bien, no volverá a mostrarse por seguridad).</li>
-                              </ol>
-                            </div>
-
-                            <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-[9.5px] text-slate-400 leading-normal">
-                              ⚠️ <strong className="text-slate-300 text-[10px]">¿Por qué son obligatorios?</strong> Para acelerar la velocidad de carga de tu dominio, Cloudflare guarda copias estáticas de tus productos ("Caché"). Sin un Zone ID y API Token con permisos de la plantilla <strong>"Clear Cache"</strong>, los clientes seguirán viendo imágenes obsoletas o productos agotados hasta por 24 horas después de tus cambios. Con esto habilitado, los cambios son instantáneos a nivel global.
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
+                    )}
                   </div>
                 </div>
 
-                {/* MANUAL PURGER BUTTON TRIGGER CONTROLLER */}
-                <div className="pt-4 border-t border-slate-800 space-y-3 bg-slate-950/20 p-3 rounded-xl">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-black text-slate-300">¿Quieres sincronizar la web manualmente?</span>
-                    <button
-                      type="button"
-                      onClick={handleManualPurge}
-                      disabled={isPurging || (!tempCfZoneId && !tempCfProxyUrl)}
-                      className="flex items-center gap-1.5 bg-slate-950 hover:bg-slate-850 disabled:bg-slate-900 disabled:text-slate-600 border border-slate-700 hover:border-slate-500 text-white font-extrabold py-2 px-3.5 rounded-xl text-xs shadow-sm transition-all active:scale-95 cursor-pointer"
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 text-indigo-400 ${isPurging ? 'animate-spin' : ''}`} />
-                      <span>{isPurging ? 'Sincronizando...' : 'Purga Manual CDN'}</span>
-                    </button>
-                  </div>
-
-                  {/* Trigger Status Alerts Feedback inside settings panel directly */}
-                  {purgeStatus === 'success' && (
-                    <div className="p-2.5 bg-emerald-950/60 border border-emerald-550 text-emerald-200 text-[10px] rounded-lg font-bold flex items-center gap-1.5 animate-scale-up">
-                      <CheckCircle className="h-4 w-4 text-emerald-400 flex-shrink-0" />
-                      <span>¡Purge Everything completado con éxito! Caché de Cloudflare vaciado en producción.</span>
-                    </div>
-                  )}
-
-                  {purgeStatus === 'error' && (
-                    <div className="p-2.5 bg-red-955/60 border border-red-500 text-white text-[10px] rounded-lg font-bold flex items-center gap-1.5 animate-scale-up">
-                      <ShieldAlert className="h-4 w-4 text-red-400 flex-shrink-0" />
-                      <span>Error al ejecutar purga. Verifique credenciales o logs de red/CORS.</span>
-                    </div>
-                  )}
-
-                  <p className="text-[9px] text-slate-400 leading-relaxed italic">
-                    💡 Si se despliega en producción directa de Cloudflare, la purga automática borra el CDN instantáneamente sin que los clientes deban recargar la página. Si hay problemas de CORS local, configure una simple Worker / Middleware proxy.
-                  </p>
+                <div className="pt-3 border-t border-slate-800 text-[10.5px] text-slate-450 leading-relaxed italic">
+                  💡 Su tienda está libre de bloqueos temporales de caché CDN (Cloudflare). Las transacciones de su embudo ocurren a nivel de backend directamente contra las tablas relacionales del estado en línea.
                 </div>
               </div>
             </div>
@@ -1564,6 +1382,8 @@ export default function AdminPanel({
             categories={categories}
             orders={orders}
             onRefreshSupabaseClient={onRefreshSupabaseClient}
+            onTriggerAlert={triggerAlert}
+            onTriggerConfirm={triggerConfirm}
           />
         )}
       </div>
