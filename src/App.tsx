@@ -10,7 +10,7 @@ import {
   Clock,
   ExternalLink
 } from 'lucide-react';
-import { Product, User, Order, SecurityLog, CartItem, ClientDetails, OrderStatus } from './types';
+import { Product, User, Order, SecurityLog, CartItem, ClientDetails, OrderStatus, VisitorLog } from './types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_USERS, 
@@ -52,6 +52,8 @@ import {
   dbFetchStoreConfig,
   dbSaveStoreConfig,
   dbSaveDatabaseInfo,
+  dbFetchVisitorLogs,
+  dbSaveVisitorLog,
   SUPABASE_SQL_SETUP_CODE
 } from './supabaseClient';
 
@@ -90,6 +92,16 @@ export default function App() {
     getLocalStorageData('omnistore_activity_logs', [])
   );
 
+  // --- Live Connection and Visitor metrics ---
+  const [dbConnected, setDbConnected] = useState<boolean>(false);
+  const [visitorLogs, setVisitorLogs] = useState<VisitorLog[]>(() => {
+    return getLocalStorageData('omnistore_visitor_logs', []);
+  });
+
+  useEffect(() => {
+    setLocalStorageData('omnistore_visitor_logs', visitorLogs);
+  }, [visitorLogs]);
+
   // --- Categories State (persisted in localStorage) ---
   const [categories, setCategories] = useState<string[]>(() => {
     return getLocalStorageData('omnistore_categories', ['Accesorios', 'Audio', 'Viaje', 'Periféricos', 'Hogar']);
@@ -105,7 +117,10 @@ export default function App() {
 
   const fetchAllFromSupabase = async () => {
     const client = getSupabaseClient();
-    if (!client) return;
+    if (!client) {
+      setDbConnected(false);
+      return;
+    }
 
     setSupabaseLoading(true);
     setSupabaseErrorMsg(null);
@@ -212,9 +227,26 @@ export default function App() {
         await dbSaveDatabaseInfo(curCf.url, curCf.key);
       }
 
+      // 9. Fetch visitor logs (Visitas por día)
+      const dbVisLogs = await dbFetchVisitorLogs();
+      if (dbVisLogs !== null) {
+        setVisitorLogs(dbVisLogs);
+      }
+
+      // 10. Heartbeat signature - update active user's lastSeen timestamp
+      if (currentUser) {
+        const updatedCurrentUser = {
+          ...currentUser,
+          lastSeen: new Date().toISOString()
+        };
+        await dbSaveUser(updatedCurrentUser);
+      }
+
+      setDbConnected(true);
     } catch (err: any) {
       console.error('Error syncing Supabase on mount:', err);
       setSupabaseErrorMsg(err?.message || 'Error de conexión o de esquema de tablas en Supabase.');
+      setDbConnected(false);
     } finally {
       setSupabaseLoading(false);
     }
@@ -351,6 +383,70 @@ export default function App() {
     const saved = sessionStorage.getItem('omnistore_session');
     return saved ? JSON.parse(saved) : null;
   });
+
+  // --- Automatic 15-Second Database Polling / Refresher ---
+  useEffect(() => {
+    const cf = getSavedSupabaseConfig();
+    if (!cf.enabled) return;
+
+    // Trigger update immediately and then periodically
+    const interval = setInterval(() => {
+      fetchAllFromSupabase();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
+  // --- Check and Log Visitor Session ---
+  useEffect(() => {
+    const checkAndLogVisitor = async () => {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
+        const sessionVisitKey = `omnistore_visit_logged_${todayStr}`;
+        const hasSessionBeenLogged = sessionStorage.getItem(sessionVisitKey) === 'true';
+
+        if (!hasSessionBeenLogged) {
+          // Unique daily visit! Generate clean custom identifier
+          const newVisitId = `visit-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+          
+          // Build human-friendly device description
+          const ua = navigator.userAgent;
+          const width = window.innerWidth;
+          const height = window.innerHeight;
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+          const devText = `${isMobile ? 'Móvil' : 'Mesa'} (${width}x${height})`;
+          
+          const newLog: VisitorLog = {
+            id: newVisitId,
+            createdDate: todayStr,
+            deviceInfo: devText,
+            createdAt: new Date().toISOString()
+          };
+
+          // Save to local state and cache first
+          setVisitorLogs(prev => {
+            const updated = [newLog, ...prev];
+            setLocalStorageData('omnistore_visitor_logs', updated);
+            return updated;
+          });
+
+          // Upload immediately to database if client exists
+          if (getSupabaseClient()) {
+            await dbSaveVisitorLog(newLog);
+          }
+
+          // Persist in session scope
+          sessionStorage.setItem(sessionVisitKey, 'true');
+        }
+      } catch (err) {
+        console.error('Error logging daily visit metadata:', err);
+      }
+    };
+    
+    // Execute with brief delay after load
+    const t = setTimeout(checkAndLogVisitor, 1200);
+    return () => clearTimeout(t);
+  }, []);
 
   // --- Shopping Cart & Overlay States ---
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -752,6 +848,8 @@ export default function App() {
             activityLogs={activityLogs}
             storeConfig={storeConfig}
             categories={categories}
+            dbConnected={dbConnected}
+            visitorLogs={visitorLogs}
             onAddCategory={handleAddCategory}
             onEditCategory={handleEditCategory}
             onDeleteCategory={handleDeleteCategory}

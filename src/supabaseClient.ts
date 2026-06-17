@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Product, User, Order, SecurityLog, ActivityLog } from './types';
+import { Product, User, Order, SecurityLog, ActivityLog, VisitorLog } from './types';
 
 export interface SupabaseConfig {
   url: string;
@@ -86,7 +86,8 @@ export async function testSupabaseConnection(url: string, key: string): Promise<
       { name: 'security_logs', testField: 'id' },
       { name: 'activity_logs', testField: 'id' },
       { name: 'store_config', testField: 'key' },
-      { name: 'database_info', testField: 'key' }
+      { name: 'database_info', testField: 'key' },
+      { name: 'visitor_logs', testField: 'id' }
     ];
 
     const missingTables: string[] = [];
@@ -246,7 +247,8 @@ export async function dbFetchUsers(): Promise<User[] | null> {
     password: u.password,
     mustChangePassword: u.must_change_password || false,
     failedLoginAttempts: Number(u.failed_login_attempts || 0),
-    blockedUntil: u.blocked_until || undefined
+    blockedUntil: u.blocked_until || undefined,
+    lastSeen: u.last_seen || undefined
   }));
 }
 
@@ -261,7 +263,8 @@ export async function dbSaveUser(user: User): Promise<boolean> {
     password: user.password || '',
     must_change_password: user.mustChangePassword || false,
     failed_login_attempts: user.failedLoginAttempts || 0,
-    blocked_until: user.blockedUntil || null
+    blocked_until: user.blockedUntil || null,
+    last_seen: user.lastSeen || null
   });
   if (error) {
     console.error(`Error saving user ${user.username}:`, error);
@@ -499,6 +502,49 @@ export async function dbSaveDatabaseInfo(url: string, key: string): Promise<bool
   }
 }
 
+// 9. Visitor Logs (Visitas por día)
+export async function dbFetchVisitorLogs(): Promise<VisitorLog[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const { data, error } = await client.from('visitor_logs').select('*');
+    if (error) {
+      console.error('Error fetching visitor logs:', error);
+      return null;
+    }
+    return data.map((v: any) => ({
+      id: v.id,
+      createdDate: v.created_date,
+      deviceInfo: v.device_info,
+      createdAt: v.created_at
+    }));
+  } catch (err) {
+    console.error('Error in dbFetchVisitorLogs:', err);
+    return null;
+  }
+}
+
+export async function dbSaveVisitorLog(log: VisitorLog): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const { error } = await client.from('visitor_logs').upsert({
+      id: log.id,
+      created_date: log.createdDate,
+      device_info: log.deviceInfo,
+      created_at: log.createdAt
+    });
+    if (error) {
+      console.error('Error saving visitor log:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error in dbSaveVisitorLog:', err);
+    return false;
+  }
+}
+
 // --- SQL TEMPLATE GENERATOR ---
 export const SUPABASE_SQL_SETUP_CODE = `-- SCRIPT DE CONFIGURACIÓN DE TABLAS PARA OMNISTORE (CUBANOS EN MIAMI)
 -- Copie este script completo y péguelo en la consola "SQL Editor" de su proyecto de Supabase.
@@ -542,7 +588,8 @@ CREATE TABLE IF NOT EXISTS public.users (
     password TEXT NOT NULL, -- Almacenada como hash SHA-256
     must_change_password BOOLEAN DEFAULT false,
     failed_login_attempts INTEGER DEFAULT 0,
-    blocked_until TEXT
+    blocked_until TEXT,
+    last_seen TEXT
 );
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -618,4 +665,16 @@ CREATE TABLE IF NOT EXISTS public.database_info (
 ALTER TABLE public.database_info ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Permitir lectura de credenciales de bd" ON public.database_info FOR SELECT USING (true);
 CREATE POLICY "Permitir escritura de credenciales de bd" ON public.database_info FOR ALL USING (true) WITH CHECK (true);
+
+-- 9. Tabla de Registro de Visitas Diarias
+CREATE TABLE IF NOT EXISTS public.visitor_logs (
+    id TEXT PRIMARY KEY,
+    created_date TEXT NOT NULL,
+    device_info TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+ALTER TABLE public.visitor_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Permitir lectura de visitas" ON public.visitor_logs FOR SELECT USING (true);
+CREATE POLICY "Permitir registrar visitas" ON public.visitor_logs FOR ALL USING (true) WITH CHECK (true);
 `;

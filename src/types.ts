@@ -22,6 +22,7 @@ export interface User {
   mustChangePassword?: boolean;
   failedLoginAttempts?: number;
   blockedUntil?: string; // ISO String when blocking expires
+  lastSeen?: string; // ISO string of last heartbeat activity
 }
 
 export interface StoreConfig {
@@ -74,4 +75,11 @@ export interface SecurityLog {
   ipAddress: string;
   device: string;
   failureReason: string;
+}
+
+export interface VisitorLog {
+  id: string;
+  createdDate: string; // 'YYYY-MM-DD'
+  deviceInfo: string;
+  createdAt: string;
 }

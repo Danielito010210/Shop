@@ -38,7 +38,7 @@ import {
   Bar, 
   Cell 
 } from 'recharts';
-import { Product, User, Order, SecurityLog, OrderStatus } from '../types';
+import { Product, User, Order, SecurityLog, OrderStatus, VisitorLog } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import { sha256 } from '../utils_crypto';
 
@@ -51,6 +51,8 @@ interface AdminPanelProps {
   activityLogs: any[];
   storeConfig: any;
   categories: string[];
+  dbConnected: boolean;
+  visitorLogs: VisitorLog[];
   onAddCategory: (newCat: string) => void;
   onEditCategory: (oldCat: string, newCat: string) => void;
   onDeleteCategory: (catToDel: string) => void;
@@ -77,6 +79,8 @@ export default function AdminPanel({
   activityLogs,
   storeConfig,
   categories,
+  dbConnected,
+  visitorLogs,
   onAddCategory,
   onEditCategory,
   onDeleteCategory,
@@ -98,6 +102,16 @@ export default function AdminPanel({
   // Search/Filters states
   const [productSearch, setProductSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+  
+  // Visitor calendar filters
+  const [visitorStartDate, setVisitorStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [visitorEndDate, setVisitorEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
   
   // Create / Edit Product Form State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -400,6 +414,18 @@ export default function AdminPanel({
     return o.status === orderStatusFilter;
   });
 
+  // Daily visitor log filters and calculations
+  const filteredVisitors = (visitorLogs || []).filter(log => {
+    return log.createdDate >= visitorStartDate && log.createdDate <= visitorEndDate;
+  });
+
+  const visitsByDay = filteredVisitors.reduce((acc: { [key: string]: number }, curr) => {
+    acc[curr.createdDate] = (acc[curr.createdDate] || 0) + 1;
+    return acc;
+  }, {});
+
+  const sortedVisitsDaily = Object.keys(visitsByDay).sort().reverse();
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 font-sans">
       
@@ -428,7 +454,15 @@ export default function AdminPanel({
                 {currentUser.role === 'employee' && 'Empleado'}
               </span>
             </div>
-            <span className="text-[11px] text-slate-450 font-medium">Sesión iniciada vía Admin Control</span>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dbConnected ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${dbConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+              </span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${dbConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {dbConnected ? 'Base de Datos Conectada' : 'Base de Datos Desconectada'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -599,6 +633,168 @@ export default function AdminPanel({
                 </div>
               </div>
             </div>
+
+            {/* PANEL ANALÍTICO Y USUARIOS EN LÍNEA (Solo para Admin y Gerente) */}
+            {(currentUser.role === 'admin' || currentUser.role === 'gerente') && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Visualizer and Statistics of Visitors */}
+                <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-lg space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                        <History className="h-5 w-5 text-indigo-400" />
+                        Registro de Tráfico y Visitas Únicas
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Monitoreo de accesos de clientes a la tienda por día.
+                      </p>
+                    </div>
+                    
+                    {/* Date picker filters */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
+                        <label className="text-[9px] font-bold uppercase text-slate-500 mb-1">Desde</label>
+                        <input
+                          type="date"
+                          value={visitorStartDate}
+                          onChange={(e) => setVisitorStartDate(e.target.value)}
+                          className="rounded-lg bg-slate-950 border border-slate-800 px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="text-[9px] font-bold uppercase text-slate-500 mb-1">Hasta</label>
+                        <input
+                          type="date"
+                          value={visitorEndDate}
+                          onChange={(e) => setVisitorEndDate(e.target.value)}
+                          className="rounded-lg bg-slate-950 border border-slate-800 px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric and List */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                    <div className="bg-indigo-950/20 border border-indigo-900/20 rounded-xl p-4 flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-455 block">Total de Visitas</span>
+                      <span className="text-3xl font-black text-indigo-400 mt-2 block">{filteredVisitors.length}</span>
+                      <span className="text-[10px] text-slate-450 mt-1 block leading-tight">En el rango de fechas seleccionado</span>
+                    </div>
+
+                    <div className="sm:col-span-3 overflow-hidden rounded-xl border border-slate-850 bg-[#020617]/40 max-h-48 overflow-y-auto">
+                      <table className="min-w-full divide-y divide-slate-900">
+                        <thead className="bg-slate-950/90 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">Fecha</th>
+                            <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400">Visitas Reg.</th>
+                            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">Métricas Relativas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-900 bg-transparent text-slate-300">
+                          {sortedVisitsDaily.length === 0 ? (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-8 text-center text-xs text-slate-500">
+                                No se encontraron registros de visitas en este rango de fechas.
+                              </td>
+                            </tr>
+                          ) : (
+                            sortedVisitsDaily.map(date => {
+                              const count = visitsByDay[date];
+                              const maxCount = Math.max(...Object.values(visitsByDay) as number[], 1);
+                              const pct = Math.min((count / maxCount) * 100, 100);
+                              return (
+                                <tr key={date} className="hover:bg-slate-900/10 transition-all">
+                                  <td className="whitespace-nowrap px-4 py-2.5 text-xs font-semibold text-white">
+                                    {formatDate(date)}
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs font-extrabold text-indigo-400">
+                                    {count} {count === 1 ? 'visita' : 'visitas'}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-xs">
+                                    <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                                      <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Online Users & Employees list */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-lg flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                        <Users className="h-5 w-5 text-emerald-400 animate-pulse" />
+                        Monitoreo en Línea
+                      </h3>
+                      <span className="flex items-center gap-1.5 bg-emerald-950/50 border border-emerald-900/40 text-emerald-400 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-lg">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        </span>
+                        En Vivo
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Personal y administradores activos en el sistema (última actualización).
+                    </p>
+
+                    <div className="mt-4 space-y-3 max-h-48 overflow-y-auto pr-1">
+                      {users.filter(u => {
+                        if (!u.lastSeen) return false;
+                        const lastSeenTime = new Date(u.lastSeen).getTime();
+                        const nowTime = new Date().getTime();
+                        return Math.abs(nowTime - lastSeenTime) < 45000;
+                      }).length === 0 ? (
+                        <div className="py-8 text-center text-xs text-slate-500">
+                          No hay personal activo en este momento.
+                        </div>
+                      ) : (
+                        users.filter(u => {
+                          if (!u.lastSeen) return false;
+                          const lastSeenTime = new Date(u.lastSeen).getTime();
+                          const nowTime = new Date().getTime();
+                          return Math.abs(nowTime - lastSeenTime) < 45000;
+                        }).map((u) => (
+                          <div key={u.id} className="flex items-center justify-between bg-slate-950/50 border border-slate-850 p-2.5 rounded-xl">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-8 w-8 bg-emerald-950 border border-emerald-900 text-emerald-400 flex items-center justify-center font-bold text-xs rounded-lg">
+                                {u.fullName ? u.fullName[0].toUpperCase() : 'U'}
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-white block">{u.fullName}</span>
+                                <span className="text-[10px] text-slate-400 block">@{u.username}</span>
+                              </div>
+                            </div>
+                            <span className="rounded-full bg-slate-900 border border-slate-800 px-2 py-0.5 text-[9px] font-bold uppercase text-slate-300">
+                              {u.role === 'admin' ? 'Admin' : u.role === 'gerente' ? 'Gerente' : 'Empleado'}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-slate-900/60 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>Límite de actualización: 15s</span>
+                    <span>Total activos: <strong className="text-emerald-400">
+                      {users.filter(u => {
+                        if (!u.lastSeen) return false;
+                        const lastSeenTime = new Date(u.lastSeen).getTime();
+                        const nowTime = new Date().getTime();
+                        return Math.abs(nowTime - lastSeenTime) < 45000;
+                      }).length}
+                    </strong></span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
