@@ -25,7 +25,7 @@ import {
   Upload,
   ArrowRight
 } from 'lucide-react';
-import DatabaseTabContent from './DatabaseTabContent';
+
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -531,19 +531,7 @@ export default function AdminPanel({
           </button>
         )}
 
-        {currentUser.role === 'admin' && (
-          <button
-            onClick={() => setActiveTab('database')}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold transition-all ${
-              activeTab === 'database'
-                ? 'border-indigo-400 text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Database className="h-4 w-4" />
-            <span>Base de Datos</span>
-          </button>
-        )}
+
       </div>
 
       {/* --- CONTENT AREA --- */}
@@ -1470,18 +1458,7 @@ export default function AdminPanel({
           </div>
         )}
 
-        {/* TAB 8: PostgreSQL DATABASE SETTINGS */}
-        {activeTab === 'database' && currentUser.role === 'admin' && (
-          <DatabaseTabContent
-            products={products}
-            users={users}
-            categories={categories}
-            orders={orders}
-            onRefreshSupabaseClient={onRefreshSupabaseClient}
-            onTriggerAlert={triggerAlert}
-            onTriggerConfirm={triggerConfirm}
-          />
-        )}
+
       </div>
 
       {/* --- FORM MODALS --- */}

@@ -10,12 +10,16 @@ export interface SupabaseConfig {
 // Read saved Supabase configuration from localStorage
 export function getSavedSupabaseConfig(): SupabaseConfig {
   try {
-    const url = localStorage.getItem('omnistore_supabase_url') || '';
-    const key = localStorage.getItem('omnistore_supabase_key') || '';
-    const enabled = localStorage.getItem('omnistore_supabase_enabled') === 'true';
+    const url = localStorage.getItem('omnistore_supabase_url') || 'https://xqkgjjdqhpsitxrqswpy.supabase.co';
+    const key = localStorage.getItem('omnistore_supabase_key') || 'sb_publishable_oxKHtCfLRVV4GtpWsC-6lw_jcncb5Eu';
+    const enabled = localStorage.getItem('omnistore_supabase_enabled') !== 'false';
     return { url, key, enabled };
   } catch (e) {
-    return { url: '', key: '', enabled: false };
+    return { 
+      url: 'https://xqkgjjdqhpsitxrqswpy.supabase.co', 
+      key: 'sb_publishable_oxKHtCfLRVV4GtpWsC-6lw_jcncb5Eu', 
+      enabled: true 
+    };
   }
 }
 
@@ -81,7 +85,8 @@ export async function testSupabaseConnection(url: string, key: string): Promise<
       { name: 'orders', testField: 'id' },
       { name: 'security_logs', testField: 'id' },
       { name: 'activity_logs', testField: 'id' },
-      { name: 'store_config', testField: 'key' }
+      { name: 'store_config', testField: 'key' },
+      { name: 'database_info', testField: 'key' }
     ];
 
     const missingTables: string[] = [];
@@ -472,6 +477,28 @@ export async function dbSaveStoreConfig(config: any): Promise<boolean> {
   }
 }
 
+// 8. Database Info
+export async function dbSaveDatabaseInfo(url: string, key: string): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const { error } = await client.from('database_info').upsert({
+      key: 'credentials',
+      url: url,
+      anon_key: key,
+      updated_at: new Date().toISOString()
+    });
+    if (error) {
+      console.error('Error saving database credentials to table:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error in dbSaveDatabaseInfo:', err);
+    return false;
+  }
+}
+
 // --- SQL TEMPLATE GENERATOR ---
 export const SUPABASE_SQL_SETUP_CODE = `-- SCRIPT DE CONFIGURACIÓN DE TABLAS PARA OMNISTORE (CUBANOS EN MIAMI)
 -- Copie este script completo y péguelo en la consola "SQL Editor" de su proyecto de Supabase.
@@ -579,4 +606,16 @@ CREATE TABLE IF NOT EXISTS public.store_config (
 ALTER TABLE public.store_config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Permitir lectura de configuración" ON public.store_config FOR SELECT USING (true);
 CREATE POLICY "Permitir actualizar de de configuración" ON public.store_config FOR ALL USING (true) WITH CHECK (true);
+
+-- 8. Tabla de Registro de Base de Datos
+CREATE TABLE IF NOT EXISTS public.database_info (
+    key TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    anon_key TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+ALTER TABLE public.database_info ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Permitir lectura de credenciales de bd" ON public.database_info FOR SELECT USING (true);
+CREATE POLICY "Permitir escritura de credenciales de bd" ON public.database_info FOR ALL USING (true) WITH CHECK (true);
 `;

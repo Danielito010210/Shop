@@ -51,6 +51,7 @@ import {
   dbClearActivityLogs,
   dbFetchStoreConfig,
   dbSaveStoreConfig,
+  dbSaveDatabaseInfo,
   SUPABASE_SQL_SETUP_CODE
 } from './supabaseClient';
 
@@ -203,6 +204,12 @@ export default function App() {
         setStoreConfig((prev: any) => ({ ...prev, ...dbConf }));
       } else {
         await dbSaveStoreConfig(storeConfig);
+      }
+
+      // 8. Log database information into the database's database_info table
+      const curCf = getSavedSupabaseConfig();
+      if (curCf.url && curCf.key) {
+        await dbSaveDatabaseInfo(curCf.url, curCf.key);
       }
 
     } catch (err: any) {
