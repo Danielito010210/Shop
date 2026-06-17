@@ -40,6 +40,7 @@ import {
 } from 'recharts';
 import { Product, User, Order, SecurityLog, OrderStatus } from '../types';
 import { formatCurrency, formatDate } from '../utils';
+import { sha256 } from '../utils_crypto';
 
 interface AdminPanelProps {
   currentUser: User;
@@ -141,6 +142,11 @@ export default function AdminPanel({
 
   // Product currency state
   const [productCurrency, setProductCurrency] = useState('CUP');
+
+  // Change Password States
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Non-blocking custom alert/confirm dialog state
   const [customDialog, setCustomDialog] = useState<{
@@ -350,6 +356,38 @@ export default function AdminPanel({
       contactNumber: tempContactNumber,
       workingHours: tempWorkingHours,
     });
+  };
+
+  const handlePasswordChangeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      triggerAlert('Campos Incompletos', 'Por favor complete todos los campos de contraseña.');
+      return;
+    }
+
+    const hashedCurrent = sha256(currentPassword);
+    if (hashedCurrent !== currentUser.password) {
+      triggerAlert('Contraseña Incorrecta', 'La contraseña actual ingresada es incorrecta.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      triggerAlert('Contraseña Débil', 'Por seguridad, la nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      triggerAlert('Error de Coincidencia', 'La nueva contraseña y su confirmación no coinciden.');
+      return;
+    }
+
+    onUpdateUser(currentUser.id, { password: newPassword });
+    triggerAlert('Contraseña Actualizada', '🔑 Contraseña maestra de administración actualizada de forma segura y persistida en base de datos.');
+    
+    // Clear form inputs
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
   };
 
   const filteredProducts = products.filter(p => 
@@ -1257,58 +1295,116 @@ export default function AdminPanel({
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* PRIMARY STORE DETAILS SECTOR */}
-              <form onSubmit={handleSettingsSubmit} className="bg-slate-900 border border-slate-705 p-6 rounded-2xl space-y-5 shadow-lg">
-                <div className="border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-400">Datos Públicos de la Tienda</h4>
-                  <p className="text-[10px] text-slate-350 mt-0.5">Al actualizar estos datos, se modificará el título de la página web automáticamente.</p>
-                </div>
+              <div className="space-y-6">
+                {/* PRIMARY STORE DETAILS SECTOR */}
+                <form onSubmit={handleSettingsSubmit} className="bg-slate-900 border border-slate-705 p-6 rounded-2xl space-y-5 shadow-lg">
+                  <div className="border-b border-slate-800 pb-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-400">Datos Públicos de la Tienda</h4>
+                    <p className="text-[10px] text-slate-350 mt-0.5">Al actualizar estos datos, se modificará el título de la página web automáticamente.</p>
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Nombre del Sitio / Web</label>
-                  <input
-                    type="text"
-                    required
-                    value={tempStoreName}
-                    onChange={(e) => setTempStoreName(e.target.value)}
-                    placeholder="Ej. Cubanos en Miami"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Nombre del Sitio / Web</label>
+                    <input
+                      type="text"
+                      required
+                      value={tempStoreName}
+                      onChange={(e) => setTempStoreName(e.target.value)}
+                      placeholder="Ej. Cubanos en Miami"
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Número de Contacto / WhatsApp</label>
-                  <input
-                    type="text"
-                    required
-                    value={tempContactNumber}
-                    onChange={(e) => setTempContactNumber(e.target.value)}
-                    placeholder="Ej. +1 (305) 555-0199"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Número de Contacto / WhatsApp</label>
+                    <input
+                      type="text"
+                      required
+                      value={tempContactNumber}
+                      onChange={(e) => setTempContactNumber(e.target.value)}
+                      placeholder="Ej. +1 (305) 555-0199"
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Horario de Trabajo Comercial</label>
-                  <input
-                    type="text"
-                    required
-                    value={tempWorkingHours}
-                    onChange={(e) => setTempWorkingHours(e.target.value)}
-                    placeholder="Ej. Lunes a Sábado: 9:00 AM - 8:00 PM / Domingo: Cerrado"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-100 mb-1.5 uppercase tracking-wider">Horario de Trabajo Comercial</label>
+                    <input
+                      type="text"
+                      required
+                      value={tempWorkingHours}
+                      onChange={(e) => setTempWorkingHours(e.target.value)}
+                      placeholder="Ej. Lunes a Sábado: 9:00 AM - 8:00 PM / Domingo: Cerrado"
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold"
+                    />
+                  </div>
 
-                <div className="pt-2 border-t border-slate-800 flex justify-end">
-                  <button
-                    type="submit"
-                    className="bg-indigo-650 hover:bg-indigo-600 text-white font-black py-3 px-6 rounded-xl text-xs shadow-lg shadow-indigo-600/25 transition-all border border-indigo-500 active:scale-98 cursor-pointer"
-                  >
-                    Guardar Cambios Comerciales
-                  </button>
-                </div>
-              </form>
+                  <div className="pt-2 border-t border-slate-800 flex justify-end">
+                    <button
+                      type="submit"
+                      className="bg-indigo-650 hover:bg-indigo-600 text-white font-black py-3 px-6 rounded-xl text-xs shadow-lg shadow-indigo-600/25 transition-all border border-indigo-500 active:scale-98 cursor-pointer"
+                    >
+                      Guardar Cambios Comerciales
+                    </button>
+                  </div>
+                </form>
+
+                {/* PERSONAL SECURITY PASSWORD CHANGE SECTOR */}
+                <form onSubmit={handlePasswordChangeSubmit} className="bg-slate-900 border border-slate-705 p-6 rounded-2xl space-y-4 shadow-lg">
+                  <div className="border-b border-slate-800 pb-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                      <Key className="h-4 w-4 shrink-0" />
+                      <span>Cambiar Contraseña de Acceso</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-350 mt-0.5">Le permite cambiar la clave maestra de su cuenta para salvaguardar la cuenta.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-10px font-extrabold text-slate-100 mb-1 uppercase tracking-wider">Contraseña Actual</label>
+                    <input
+                      type="password"
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-10px font-extrabold text-slate-100 mb-1 uppercase tracking-wider">Nueva Contraseña</label>
+                    <input
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-10px font-extrabold text-slate-100 mb-1 uppercase tracking-wider">Confirmar Nueva Contraseña</label>
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-600 rounded-xl text-xs text-white focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex justify-end">
+                    <button
+                      type="submit"
+                      className="bg-indigo-650 hover:bg-indigo-600 text-white font-black py-3 px-6 rounded-xl text-xs shadow-lg shadow-indigo-600/25 transition-all border border-indigo-500 active:scale-98 cursor-pointer"
+                    >
+                      Actualizar Mi Contraseña 🔑
+                    </button>
+                  </div>
+                </form>
+              </div>
 
               {/* SUPABASE STATUS AND INTEGRATION OVERVIEW */}
               <div className="bg-slate-900 border border-slate-705 p-6 rounded-2xl space-y-5 flex flex-col justify-between shadow-lg">

@@ -145,6 +145,22 @@ export default function App() {
           }
           setUsers(INITIAL_USERS);
         } else {
+          const adminUserExists = dbUsrs.some(u => u.username === 'admin');
+          if (!adminUserExists) {
+            const expectedHash = sha256('admin123*');
+            const defaultAdmin: User = {
+              id: 'user-admin',
+              username: 'admin',
+              fullName: 'Administrador Principal',
+              role: 'admin',
+              password: expectedHash,
+              mustChangePassword: false,
+              failedLoginAttempts: 0,
+              blockedUntil: undefined
+            };
+            await dbSaveUser(defaultAdmin);
+            dbUsrs.push(defaultAdmin);
+          }
           setUsers(dbUsrs);
         }
       }
@@ -577,12 +593,14 @@ export default function App() {
 
   // --- Users CRUD handlers (Admin only / Lock rules) ---
   const handleAddUser = (newUser: Omit<User, 'id'> & { password?: string }) => {
+    const rawPass = newUser.password || 'temp123';
+    const isAlreadyHashed = /^[a-f0-9]{64}$/i.test(rawPass);
     const payload: User = {
       id: `user-${Date.now()}`,
       fullName: newUser.fullName,
       username: newUser.username,
       role: newUser.role,
-      password: newUser.password || 'temp123',
+      password: isAlreadyHashed ? rawPass : sha256(rawPass),
     };
 
     setUsers((prev) => [...prev, payload]);
@@ -594,9 +612,18 @@ export default function App() {
 
   const handleUpdateUser = (id: string, updates: Partial<User>) => {
     const targetUser = users.find(u => u.id === id);
+    let finalUpdates = { ...updates };
+    if (updates.password) {
+      // Check if password is already a 64-character hex string (already a sha256 hash)
+      const isAlreadyHashed = /^[a-f0-9]{64}$/i.test(updates.password);
+      if (!isAlreadyHashed) {
+        finalUpdates.password = sha256(updates.password);
+      }
+    }
+
     setUsers((prev) => prev.map((u) => {
       if (u.id === id) {
-        const updated = { ...u, ...updates };
+        const updated = { ...u, ...finalUpdates };
         if (getSupabaseClient()) {
           dbSaveUser(updated);
         }
@@ -681,6 +708,7 @@ export default function App() {
     if (getSupabaseClient()) {
       dbSaveStoreConfig(config);
     }
+    logActivity('Modificar Configuración', `Se cambió la configuración de la tienda. Nombre: "${config.storeName}", Teléfono: "${config.contactNumber}", Horario: "${config.workingHours}".`);
   };
 
   // Filter products catalog categories
