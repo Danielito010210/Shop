@@ -21,8 +21,10 @@ import {
   DollarSign,
   Settings,
   History,
-  Sparkles
+  Sparkles,
+  Upload
 } from 'lucide-react';
+import DatabaseTabContent from './DatabaseTabContent';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -62,6 +64,7 @@ interface AdminPanelProps {
   onClearOrders?: () => void;
   onUpdateStoreConfig: (config: any) => void;
   onTriggerCloudflarePurge?: () => Promise<void>;
+  onRefreshSupabaseClient?: () => void;
 }
 
 export default function AdminPanel({
@@ -88,6 +91,7 @@ export default function AdminPanel({
   onClearOrders,
   onUpdateStoreConfig,
   onTriggerCloudflarePurge,
+  onRefreshSupabaseClient = () => {}
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
@@ -548,6 +552,20 @@ export default function AdminPanel({
           >
             <Settings className="h-4 w-4" />
             <span>Configuración</span>
+          </button>
+        )}
+
+        {currentUser.role === 'admin' && (
+          <button
+            onClick={() => setActiveTab('database')}
+            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold transition-all ${
+              activeTab === 'database'
+                ? 'border-indigo-400 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Database className="h-4 w-4" />
+            <span>Base de Datos</span>
           </button>
         )}
       </div>
@@ -1537,6 +1555,17 @@ export default function AdminPanel({
             </div>
           </div>
         )}
+
+        {/* TAB 8: PostgreSQL DATABASE SETTINGS */}
+        {activeTab === 'database' && currentUser.role === 'admin' && (
+          <DatabaseTabContent
+            products={products}
+            users={users}
+            categories={categories}
+            orders={orders}
+            onRefreshSupabaseClient={onRefreshSupabaseClient}
+          />
+        )}
       </div>
 
       {/* --- FORM MODALS --- */}
@@ -1640,17 +1669,60 @@ export default function AdminPanel({
                 />
               </div>
 
-              {/* Image URL with standard placeholder options */}
-              <div>
-                <label className="block text-xs font-bold text-slate-755 mb-1.5">URL de Imagen</label>
-                <input
-                  type="text"
-                  required
-                  value={productImage}
-                  onChange={(e) => setProductImage(e.target.value)}
-                  placeholder="https://images.unsplash.com/photo-..."
-                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:outline-none"
-                />
+              {/* Image Input Selection: URL or Uploaded File */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-755">Imagen del Producto (URL o Cargar Archivo)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={productImage}
+                    onChange={(e) => setProductImage(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-... o Base64"
+                    className="flex-1 px-3.5 py-2.5 bg-gray-50 border border-gray-255 rounded-xl text-xs text-slate-950 font-bold focus:bg-white focus:outline-none"
+                  />
+                  <label className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center justify-center cursor-pointer gap-1.5 shrink-0 transition-colors">
+                    <Upload className="h-3.5 w-3.5 text-indigo-650" />
+                    <span>Subir...</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (typeof reader.result === 'string') {
+                              setProductImage(reader.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                {productImage && (
+                  <div className="mt-2 text-center bg-gray-55/70 p-2 rounded-xl border border-dashed border-gray-300 flex items-center justify-between gap-3 animate-fade-in">
+                    <img 
+                      src={productImage} 
+                      alt="Vista previa" 
+                      className="h-10 w-10 object-cover rounded-lg border border-gray-200" 
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} 
+                    />
+                    <span className="text-[10px] text-slate-550 truncate max-w-[200px] font-mono">
+                      {productImage.startsWith('data:') ? 'Imagen cargada en Base64' : productImage}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setProductImage('')}
+                      className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer pr-1"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Discount / Sales Checkbox */}

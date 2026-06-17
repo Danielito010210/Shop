@@ -24,6 +24,35 @@ import {
   formatCurrency 
 } from './utils';
 import { sha256 } from './utils_crypto';
+import {
+  getSavedSupabaseConfig,
+  saveSupabaseConfig,
+  refreshSupabaseClient,
+  getSupabaseClient,
+  testSupabaseConnection,
+  dbFetchCategories,
+  dbSaveCategory,
+  dbDeleteCategory,
+  dbUpdateCategoryName,
+  dbFetchProducts,
+  dbSaveProduct,
+  dbDeleteProduct,
+  dbFetchUsers,
+  dbSaveUser,
+  dbDeleteUser,
+  dbFetchOrders,
+  dbSaveOrder,
+  dbDeleteOrder,
+  dbFetchSecurityLogs,
+  dbSaveSecurityLog,
+  dbClearSecurityLogs,
+  dbFetchActivityLogs,
+  dbSaveActivityLog,
+  dbClearActivityLogs,
+  dbFetchStoreConfig,
+  dbSaveStoreConfig,
+  SUPABASE_SQL_SETUP_CODE
+} from './supabaseClient';
 
 // Subcomponents
 import Navbar from './components/Navbar';
@@ -69,23 +98,136 @@ export default function App() {
     setLocalStorageData('omnistore_categories', categories);
   }, [categories]);
 
+  // --- Fetch and Sync with Supabase on Mount & State Hook ---
+  const [supabaseLoading, setSupabaseLoading] = useState(false);
+  const [supabaseErrorMsg, setSupabaseErrorMsg] = useState<string | null>(null);
+
+  const fetchAllFromSupabase = async () => {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    setSupabaseLoading(true);
+    setSupabaseErrorMsg(null);
+    try {
+      // 1. Fetch categories
+      const dbCats = await dbFetchCategories();
+      if (dbCats !== null) {
+        if (dbCats.length === 0) {
+          const defaultCats = ['Accesorios', 'Audio', 'Viaje', 'Periféricos', 'Hogar'];
+          for (const cat of defaultCats) {
+            await dbSaveCategory(cat);
+          }
+          setCategories(defaultCats);
+        } else {
+          setCategories(dbCats);
+        }
+      }
+
+      // 2. Fetch products
+      const dbProds = await dbFetchProducts();
+      if (dbProds !== null) {
+        if (dbProds.length === 0) {
+          for (const prod of INITIAL_PRODUCTS) {
+            await dbSaveProduct(prod);
+          }
+          setProducts(INITIAL_PRODUCTS);
+        } else {
+          setProducts(dbProds);
+        }
+      }
+
+      // 3. Fetch users
+      const dbUsrs = await dbFetchUsers();
+      if (dbUsrs !== null) {
+        if (dbUsrs.length === 0) {
+          for (const usr of INITIAL_USERS) {
+            await dbSaveUser(usr);
+          }
+          setUsers(INITIAL_USERS);
+        } else {
+          setUsers(dbUsrs);
+        }
+      }
+
+      // 4. Fetch orders
+      const dbOrds = await dbFetchOrders();
+      if (dbOrds !== null) {
+        if (dbOrds.length === 0 && orders.length > 0) {
+          for (const ord of INITIAL_ORDERS) {
+            await dbSaveOrder(ord);
+          }
+          setOrders(INITIAL_ORDERS);
+        } else {
+          setOrders(dbOrds);
+        }
+      }
+
+      // 5. Fetch security logs
+      const dbSecLogs = await dbFetchSecurityLogs();
+      if (dbSecLogs !== null) {
+        if (dbSecLogs.length === 0 && securityLogs.length > 0) {
+          for (const log of INITIAL_SECURITY_LOGS) {
+            await dbSaveSecurityLog(log);
+          }
+          setSecurityLogs(INITIAL_SECURITY_LOGS);
+        } else {
+          setSecurityLogs(dbSecLogs);
+        }
+      }
+
+      // 6. Fetch activity logs
+      const dbActLogs = await dbFetchActivityLogs();
+      if (dbActLogs !== null) {
+        setActivityLogs(dbActLogs);
+      }
+
+      // 7. Fetch store config
+      const dbConf = await dbFetchStoreConfig();
+      if (dbConf !== null && Object.keys(dbConf).length > 0) {
+        setStoreConfig((prev: any) => ({ ...prev, ...dbConf }));
+      } else {
+        await dbSaveStoreConfig(storeConfig);
+      }
+
+    } catch (err: any) {
+      console.error('Error syncing Supabase on mount:', err);
+      setSupabaseErrorMsg(err?.message || 'Error de conexión o de esquema de tablas en Supabase.');
+    } finally {
+      setSupabaseLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const cf = getSavedSupabaseConfig();
+    if (cf.enabled) {
+      fetchAllFromSupabase();
+    }
+  }, []);
+
   // --- Category Handlers ---
   const handleAddCategory = (newCat: string) => {
     setCategories((prev) => {
       if (prev.includes(newCat)) return prev;
       return [...prev, newCat];
     });
+
+    if (getSupabaseClient()) {
+      dbSaveCategory(newCat);
+    }
+
     // Add activity log
     if (currentUser) {
-      setActivityLogs((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          username: currentUser?.username || 'admin',
-          action: `Creó la categoría "${newCat}"`
-        },
-        ...prev
-      ]);
+      const actLog = {
+        id: `act-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        username: currentUser?.username || 'admin',
+        userFullName: currentUser?.fullName || '',
+        action: `Creó la categoría "${newCat}"`
+      };
+      setActivityLogs((prev) => [actLog, ...prev]);
+      if (getSupabaseClient()) {
+        dbSaveActivityLog(actLog);
+      }
     }
   };
 
@@ -94,19 +236,35 @@ export default function App() {
     setCategories((prev) => prev.map((c) => (c === oldCat ? newCat : c)));
     // 2. Update products belonging to this category automatically
     setProducts((currentProducts) =>
-      currentProducts.map((p) => (p.category === oldCat ? { ...p, category: newCat } : p))
+      currentProducts.map((p) => {
+        if (p.category === oldCat) {
+          const updated = { ...p, category: newCat };
+          if (getSupabaseClient()) {
+            dbSaveProduct(updated);
+          }
+          return updated;
+        }
+        return p;
+      })
     );
+
+    if (getSupabaseClient()) {
+      dbUpdateCategoryName(oldCat, newCat);
+    }
+
     // Add activity log
     if (currentUser) {
-      setActivityLogs((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          username: currentUser?.username || 'admin',
-          action: `Renombró la categoría "${oldCat}" a "${newCat}"`
-        },
-        ...prev
-      ]);
+      const actLog = {
+        id: `act-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        username: currentUser?.username || 'admin',
+        userFullName: currentUser?.fullName || '',
+        action: `Renombró la categoría "${oldCat}" a "${newCat}"`
+      };
+      setActivityLogs((prev) => [actLog, ...prev]);
+      if (getSupabaseClient()) {
+        dbSaveActivityLog(actLog);
+      }
     }
   };
 
@@ -123,20 +281,35 @@ export default function App() {
 
     // 3. Update products belonging to this category to map to fallbackCat
     setProducts((currentProducts) => {
-      return currentProducts.map((p) => (p.category === catToDel ? { ...p, category: fallbackCat } : p));
+      return currentProducts.map((p) => {
+        if (p.category === catToDel) {
+          const updated = { ...p, category: fallbackCat };
+          if (getSupabaseClient()) {
+            dbSaveProduct(updated);
+          }
+          return updated;
+        }
+        return p;
+      });
     });
+
+    if (getSupabaseClient()) {
+      dbDeleteCategory(catToDel);
+    }
 
     // Add activity log
     if (currentUser) {
-      setActivityLogs((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          username: currentUser?.username || 'admin',
-          action: `Eliminó la categoría "${catToDel}"`
-        },
-        ...prev
-      ]);
+      const actLog = {
+        id: `act-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        username: currentUser?.username || 'admin',
+        userFullName: currentUser?.fullName || '',
+        action: `Eliminó la categoría "${catToDel}"`
+      };
+      setActivityLogs((prev) => [actLog, ...prev]);
+      if (getSupabaseClient()) {
+        dbSaveActivityLog(actLog);
+      }
     }
     // Adjust storefront selected category filter if it was the deleted one
     if (selectedCategory === catToDel) {
@@ -419,11 +592,14 @@ export default function App() {
       return prevProducts.map((p) => {
         const boughtItem = cartItems.find((ci) => ci.product.id === p.id);
         if (boughtItem) {
-          return {
+          const updated = {
             ...p,
-            // Guard inventory down is non-negative
             stock: Math.max(0, p.stock - boughtItem.quantity),
           };
+          if (getSupabaseClient()) {
+            dbSaveProduct(updated);
+          }
+          return updated;
         }
         return p;
       });
@@ -431,6 +607,9 @@ export default function App() {
 
     // Append to system orders list
     setOrders((prevOrders) => [newOrder, ...prevOrders]);
+    if (getSupabaseClient()) {
+      dbSaveOrder(newOrder);
+    }
     setCartItems([]); // Reset customer cart
     setLastGeneratedInvoice(nextInvoice);
   };
@@ -447,6 +626,9 @@ export default function App() {
       details,
     };
     setActivityLogs((prev) => [newLog, ...prev]);
+    if (getSupabaseClient()) {
+      dbSaveActivityLog(newLog);
+    }
   };
 
   // --- Backoffice Actions ---
@@ -454,11 +636,15 @@ export default function App() {
     setOrders((prevOrders) => {
       return prevOrders.map((ord) => {
         if (ord.id === orderId) {
-          return {
+          const updated = {
             ...ord,
             status,
             processedBy: workerName,
           };
+          if (getSupabaseClient()) {
+            dbSaveOrder(updated);
+          }
+          return updated;
         }
         return ord;
       });
@@ -477,17 +663,26 @@ export default function App() {
       id: `prod-${Date.now()}`,
     };
     setProducts((prev) => [payload, ...prev]);
+    if (getSupabaseClient()) {
+      dbSaveProduct(payload);
+    }
     logActivity('Crear Producto', `Se añadió el producto "${payload.name}" con un precio base de ${formatCurrency(payload.price)} y stock inicial de ${payload.stock} unidades.`);
   };
 
   const handleUpdateProduct = (updatedProd: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updatedProd.id ? updatedProd : p)));
+    if (getSupabaseClient()) {
+      dbSaveProduct(updatedProd);
+    }
     logActivity('Actualizar Producto', `Se actualizó el producto "${updatedProd.name}". Nuevo precio: ${formatCurrency(updatedProd.price)}, stock registrado: ${updatedProd.stock} unidades.`);
   };
 
   const handleDeleteProduct = (id: string) => {
     const prod = products.find(p => p.id === id);
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    if (getSupabaseClient()) {
+      dbDeleteProduct(id);
+    }
     if (prod) {
       logActivity('Eliminar Producto', `Se borró del inventario el producto "${prod.name}" (ID: ${id}) de forma irreversible.`);
     }
@@ -504,12 +699,24 @@ export default function App() {
     };
 
     setUsers((prev) => [...prev, payload]);
+    if (getSupabaseClient()) {
+      dbSaveUser(payload);
+    }
     logActivity('Crear Usuario', `Se dió de alta al nuevo operador @${payload.username} (${payload.fullName}) en el sistema con el rango de ${payload.role}.`);
   };
 
   const handleUpdateUser = (id: string, updates: Partial<User>) => {
     const targetUser = users.find(u => u.id === id);
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...updates } : u)));
+    setUsers((prev) => prev.map((u) => {
+      if (u.id === id) {
+        const updated = { ...u, ...updates };
+        if (getSupabaseClient()) {
+          dbSaveUser(updated);
+        }
+        return updated;
+      }
+      return u;
+    }));
     if (targetUser) {
       logActivity('Modificar Usuario', `Se modificó el perfil del operador @${targetUser.username}. Campos actualizados: ${Object.keys(updates).join(', ')}.`);
     }
@@ -518,6 +725,9 @@ export default function App() {
   const handleDeleteUser = (id: string) => {
     const targetUser = users.find(u => u.id === id);
     setUsers((prev) => prev.filter((u) => u.id !== id));
+    if (getSupabaseClient()) {
+      dbDeleteUser(id);
+    }
     if (targetUser) {
       logActivity('Eliminar Usuario', `Se eliminó y desvinculó permanentemente al usuario @${targetUser.username} (${targetUser.fullName}) de la nómina.`);
     }
@@ -547,6 +757,9 @@ export default function App() {
     };
 
     setSecurityLogs((prev) => [newAlert, ...prev]);
+    if (getSupabaseClient()) {
+      dbSaveSecurityLog(newAlert);
+    }
   };
 
   const handleLogout = () => {
@@ -557,14 +770,30 @@ export default function App() {
 
   const handleClearLogs = () => {
     setSecurityLogs([]);
+    if (getSupabaseClient()) {
+      dbClearSecurityLogs();
+    }
   };
 
   const handleClearActivityLogs = () => {
     setActivityLogs([]);
+    if (getSupabaseClient()) {
+      dbClearActivityLogs();
+    }
   };
 
   const handleClearOrders = () => {
     setOrders([]);
+    if (getSupabaseClient()) {
+      orders.forEach((o) => dbDeleteOrder(o.id));
+    }
+  };
+
+  const handleUpdateStoreConfig = (config: any) => {
+    setStoreConfig(config);
+    if (getSupabaseClient()) {
+      dbSaveStoreConfig(config);
+    }
   };
 
   // Filter products catalog categories
@@ -614,7 +843,7 @@ export default function App() {
             onClearLogs={handleClearLogs}
             onClearActivityLogs={handleClearActivityLogs}
             onClearOrders={handleClearOrders}
-            onUpdateStoreConfig={(config) => setStoreConfig(config)}
+            onUpdateStoreConfig={handleUpdateStoreConfig}
             onTriggerCloudflarePurge={triggerCloudflarePurgeCache}
           />
         </main>
